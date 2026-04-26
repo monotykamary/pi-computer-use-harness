@@ -1,5 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "entry": ["extensions/computer-use.ts", "harness/server.ts", "harness/cli.ts", "skills/computer-use/SKILL.md"],
-  "ignoreExportsUsedInFile": true
+  "ignoreExportsUsedInFile": true,
+  "ignoreBinaries": ["tsx"]
 }

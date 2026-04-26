@@ -14,7 +14,7 @@
 
 import { homedir } from "node:os";
 import * as fs from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn as spawnChild, type ChildProcess } from "node:child_process";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -26,14 +26,17 @@ import { loadComputerUseConfig, getLoadedComputerUseConfig } from "../src/config
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
-function getCliPath(): string {
-	// When running from dist/: __dirname = .../dist, so dist/harness/cli.js exists
-	const compiledPath = join(__dirname, "harness", "cli.js");
-	if (fs.existsSync(compiledPath)) return compiledPath;
-	// When running from source via tsx: __dirname = project root
-	const fromSource = join(__dirname, "dist", "harness", "cli.js");
-	if (fs.existsSync(fromSource)) return fromSource;
-	return compiledPath;
+/** Resolve the project root (where package.json lives). */
+function getProjectRoot(): string {
+	// When pi loads the extension via tsx, __dirname is the source
+	// directory containing this file (e.g. .../pi-computer-use/extensions).
+	// The project root is one level up.
+	return join(__dirname, "..");
+}
+
+/** Resolve the CLI entry point (TypeScript source). */
+function getCliTsPath(): string {
+	return join(getProjectRoot(), "harness", "cli.ts");
 }
 
 // =============================================================================
@@ -46,11 +49,15 @@ function installShellAlias(): void {
 		if (!fs.existsSync(agentBinDir)) {
 			fs.mkdirSync(agentBinDir, { recursive: true });
 		}
-		const cliPath = getCliPath();
+		const cliTsPath = getCliTsPath();
 		const linkPath = join(agentBinDir, "pi-computer-use");
 
+		// Use npx tsx so the wrapper works regardless of global tsx installation.
+		// The project root must be the cwd so relative imports in cli.ts resolve.
+		const projectRoot = getProjectRoot();
 		const wrapperContent = `#!/bin/sh
-exec node "${cliPath}" "$@"
+cd "${projectRoot}" 2>/dev/null
+exec npx tsx "${cliTsPath}" "$@"
 `;
 
 		let currentContent: string | null = null;
@@ -83,11 +90,12 @@ function createHarnessServer(): HarnessServerController {
 		if (harnessProcess) return;
 		if (process.env.PI_SWARM_SPAWNED === "1") return;
 
-		const cliPath = getCliPath();
+		const cliTsPath = getCliTsPath();
+		const projectRoot = getProjectRoot();
 
 		try {
-			harnessProcess = spawnChild("node", [cliPath, "--start"], {
-				cwd: process.cwd(),
+			harnessProcess = spawnChild("npx", ["tsx", cliTsPath, "--start"], {
+				cwd: projectRoot,
 				stdio: ["ignore", "ignore", "ignore"],
 				detached: true,
 			});
