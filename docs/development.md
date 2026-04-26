@@ -83,10 +83,10 @@ Keep that identifier stable for release builds so macOS permissions remain tied 
 
 ## Validation
 
-For TypeScript and schema checks:
+For TypeScript checks:
 
 ```bash
-npm test
+npm run typecheck
 ```
 
 For behavior changes, run the QA benchmark:

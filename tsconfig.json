@@ -12,6 +12,7 @@
   },
   "include": [
     "extensions/**/*.ts",
+    "harness/**/*.ts",
     "src/**/*.ts",
     "benchmarks/**/*.ts"
   ]

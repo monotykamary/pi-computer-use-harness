@@ -1,7 +1,7 @@
 {
   "name": "@injaneity/pi-computer-use",
-  "version": "0.2.1",
-  "description": "Codex-style computer-use tools for Pi on macOS.",
+  "version": "0.3.0",
+  "description": "macOS computer-use for Pi via harness server and CLI.",
   "type": "module",
   "keywords": [
     "pi-package",
@@ -26,6 +26,7 @@
   },
   "files": [
     "extensions",
+    "harness",
     "skills",
     "src",
     "scripts/build-native.mjs",
@@ -47,20 +48,20 @@
   },
   "scripts": {
     "postinstall": "node scripts/setup-helper.mjs --postinstall",
+    "lint:dead": "knip --no-gitignore",
     "typecheck": "tsc -p tsconfig.json",
-    "test:schema": "node scripts/check-tool-schemas.mjs",
-    "test": "npm run typecheck && npm run test:schema",
     "build:native": "node scripts/build-native.mjs",
     "benchmark:qa": "npx -y tsx benchmarks/qa.ts --allow-foreground-qa",
-    "benchmark:qa:full": "npx -y tsx benchmarks/qa.ts --allow-foreground-qa --allow-screen-takeover"
+    "benchmark:qa:full": "npx -y tsx benchmarks/qa.ts --allow-foreground-qa --allow-screen-takeover",
+    "test:e2e": "npx tsx harness/e2e.ts",
+    "test:e2e:write": "npx tsx harness/e2e.ts --allow-write"
   },
   "peerDependencies": {
-    "@mariozechner/pi-ai": "*",
-    "@mariozechner/pi-coding-agent": "*",
-    "@sinclair/typebox": "*"
+    "@mariozechner/pi-coding-agent": "*"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "knip": "^6.7.0",
     "typescript": "^6.0.3"
   }
 }
