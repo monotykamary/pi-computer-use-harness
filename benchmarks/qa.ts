@@ -4,22 +4,21 @@ import os from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import {
-	performClick,
-	performComputerActions,
-	performDoubleClick,
 	performDrag,
 	performKeypress,
+	performListApps,
+	performListWindows,
 	performMoveMouse,
 	performScreenshot,
 	performScroll,
 	performSetText,
 	performTypeText,
+	performClick,
+	performComputerActions,
+	performDoubleClick,
 	performWait,
-	performListApps,
-	performListWindows,
-	ensureBridgeReady,
-	stopBridge,
-} from "../src/bridge.ts";
+} from "../src/perform.ts";
+import { ensureBridgeReady, stopBridge } from "../src/bridge-ipc.ts";;
 
 const ALLOW_FOREGROUND_QA =
 	process.argv.includes("--allow-foreground-qa") || process.env.PI_COMPUTER_USE_ALLOW_FOREGROUND_QA === "1";
