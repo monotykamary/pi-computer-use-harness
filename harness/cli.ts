@@ -9,9 +9,9 @@
  *   pi-computer-use click [--ref @e1] [-x 100] [-y 200] [--button left|right|middle] [--clickCount 1] [--window @w1] [--stateId ...] [--image auto|always|never]
  *   pi-computer-use double_click [--ref @e1] [-x 100] [-y 200] [--window @w1] [--stateId ...] [--image auto|always|never]
  *   pi-computer-use move_mouse -x 100 -y 200 [--window @w1] [--stateId ...] [--image auto|always|never]
- *   pi-computer-use drag --path '[{"x":10,"y":20},{"x":100,"y":200}]' [--ref @e1] [--window @w1] [--stateId ...] [--image auto|always|never]
+ *   pi-computer-use drag --path '10,20 100,200' [--ref @e1] [--window @w1] [--stateId ...] [--image auto|always|never]
  *   pi-computer-use scroll [-x 100] [-y 200] [--ref @e3] [--scrollX 0] [--scrollY 600] [--window @w1] [--stateId ...] [--image auto|always|never]
- *   pi-computer-use keypress --keys '["Enter"]' [--window @w1] [--stateId ...] [--image auto|always|never]
+ *   pi-computer-use keypress --keys Command+L,Enter [--window @w1] [--stateId ...] [--image auto|always|never]
  *   pi-computer-use type_text --text "hello" [--window @w1] [--stateId ...] [--image auto|always|never]
  *   pi-computer-use set_text --text "hello" [--ref @e2] [--window @w1] [--stateId ...] [--image auto|always|never]
  *   pi-computer-use wait [--ms 1000] [--window @w1] [--stateId ...] [--image auto|always|never]
@@ -208,6 +208,39 @@ function extractShortFlag(args: string[], name: string): string | undefined {
 	return undefined;
 }
 
+// -----------------------------------------------------------------------------
+// Parse helpers for CLI-natural flag values
+// -----------------------------------------------------------------------------
+
+/**
+ * Parse --keys value.
+ *
+ * Natural:   Command+L,Enter     → ["Command+L", "Enter"]
+ * Legacy:    '["Enter"]'          → ["Enter"]
+ */
+function parseKeys(raw: string): string[] {
+	if (raw.startsWith("[")) return JSON.parse(raw);
+	return raw.split(",").map((k) => k.trim()).filter((k) => k.length > 0);
+}
+
+/**
+ * Parse --path value for drag.
+ *
+ * Natural:   10,20 100,200           → [{x:10,y:20},{x:100,y:200}]
+ * Legacy:    '[{"x":10,"y":20}]'   → [{x:10,y:20}]
+ */
+function parseDragPath(raw: string): Array<{ x: number; y: number } | [number, number]> {
+	if (raw.startsWith("[")) return JSON.parse(raw);
+	return raw
+		.trim()
+		.split(/\s+/)
+		.map((pair) => {
+			const parts = pair.split(",");
+			if (parts.length !== 2) throw new Error(`Invalid drag point '${pair}'. Use x,y pairs like: 10,20 100,200`);
+			return { x: Number(parts[0]), y: Number(parts[1]) };
+		});
+}
+
 // =============================================================================
 // CLI entrypoint
 // =============================================================================
@@ -225,9 +258,9 @@ Usage:
   pi-computer-use click [--ref @e1] [-x N] [-y N] [--button left|right|middle] [--window @w1] [--stateId ...] [--image auto|always|never]
   pi-computer-use double_click [--ref @e1] [-x N] [-y N] [--window @w1] [--image auto|always|never]
   pi-computer-use move_mouse -x N -y N [--window @w1] [--image auto|always|never]
-  pi-computer-use drag --path '[{"x":10,"y":20},{"x":100,"y":200}]' [--ref @e1] [--window @w1] [--image auto|always|never]
+  pi-computer-use drag --path '10,20 100,200' [--ref @e1] [--window @w1] [--image auto|always|never]
   pi-computer-use scroll [-x N] [-y N] [--ref @e3] [--scrollY 600] [--window @w1] [--image auto|always|never]
-  pi-computer-use keypress --keys '["Enter","Tab"]' [--window @w1] [--image auto|always|never]
+  pi-computer-use keypress --keys Command+L,Enter [--window @w1] [--image auto|always|never]
   pi-computer-use type_text --text "hello" [--window @w1] [--image auto|always|never]
   pi-computer-use set_text --text "hello" [--ref @e2] [--window @w1] [--image auto|always|never]
   pi-computer-use wait [--ms 1000] [--window @w1] [--image auto|always|never]
@@ -414,19 +447,28 @@ Environment:
 		}
 
 		case "drag": {
-			const pathJson = extractFlag(args, "path");
+			const pathRaw = extractFlag(args, "path");
 			const ref = extractFlag(args, "ref");
 			const window = extractFlag(args, "window");
 			const stateId = extractFlag(args, "stateId");
 			const image = extractFlag(args, "image");
-			if (!pathJson && !ref) {
+			if (!pathRaw && !ref) {
 				process.stderr.write("Error: drag requires --path or --ref.\n");
 				process.exit(1);
+			}
+			let pathVal: Array<{ x: number; y: number } | [number, number]> | undefined;
+			if (pathRaw) {
+				try {
+					pathVal = parseDragPath(pathRaw);
+				} catch (e) {
+					process.stderr.write(`Error: invalid --path value: ${e instanceof Error ? e.message : e}\n`);
+					process.exit(1);
+				}
 			}
 			await postAction(
 				JSON.stringify({
 					action: "drag",
-					...(pathJson ? { path: JSON.parse(pathJson) } : {}),
+					...(pathVal ? { path: pathVal } : {}),
 					...(ref ? { ref } : {}),
 					...(window ? { window } : {}),
 					...(stateId ? { stateId } : {}),
@@ -462,18 +504,25 @@ Environment:
 		}
 
 		case "keypress": {
-			const keysJson = extractFlag(args, "keys");
+			const keysRaw = extractFlag(args, "keys");
 			const window = extractFlag(args, "window");
 			const stateId = extractFlag(args, "stateId");
 			const image = extractFlag(args, "image");
-			if (!keysJson) {
-				process.stderr.write("Error: keypress requires --keys (JSON array).\n");
+			if (!keysRaw) {
+				process.stderr.write("Error: keypress requires --keys (e.g. --keys Command+L,Enter or --keys '[\"Enter\"]').\n");
+				process.exit(1);
+			}
+			let keys: string[];
+			try {
+				keys = parseKeys(keysRaw);
+			} catch (e) {
+				process.stderr.write(`Error: invalid --keys value: ${e instanceof Error ? e.message : e}\n`);
 				process.exit(1);
 			}
 			await postAction(
 				JSON.stringify({
 					action: "keypress",
-					keys: JSON.parse(keysJson),
+					keys,
 					...(window ? { window } : {}),
 					...(stateId ? { stateId } : {}),
 					...(image ? { image } : {}),

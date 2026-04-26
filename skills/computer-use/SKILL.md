@@ -57,16 +57,16 @@ pi-computer-use double_click -x 320 -y 180
 # Move mouse (coordinates from the latest screenshot)
 pi-computer-use move_mouse -x 100 -y 200
 
-# Drag along a path
-pi-computer-use drag --path '[{"x":10,"y":20},{"x":100,"y":200}]'
+# Drag along a path (space-separated x,y pairs)
+pi-computer-use drag --path '10,20 100,200'
 
 # Scroll by AX ref or coordinates
 pi-computer-use scroll --ref @e3 --scrollY 600
 pi-computer-use scroll -x 400 -y 300 --scrollY 600
 
-# Keyboard input
-pi-computer-use keypress --keys '["Enter"]'
-pi-computer-use keypress --keys '["Command+L","Enter"]'
+# Keyboard input (comma-separated key names)
+pi-computer-use keypress --keys Enter
+pi-computer-use keypress --keys Command+L,Enter
 
 # Text input
 pi-computer-use type_text --text "hello world"
@@ -122,8 +122,8 @@ pi-computer-use '{ "action": "screenshot", "window": "@w1" }'
 - Coordinates are **window-relative screenshot pixels** (top-left origin) from the latest screenshot.
 - `stateId` is optional. If provided and stale, the error message tells you to refresh with `screenshot`.
 - `type_text` inserts text at the current cursor/selection. Use `set_text` for AX value replacement; prefer `--ref` over relying on focus.
-- `scroll` can use `--ref @eN` for an AX scroll target or `--scrollY`/`--scrollX` with coordinates. `drag` can use `--ref @eN` for sliders/steppers with AX `adjust` capability, otherwise `--path` with coordinate points.
-- For shortcut sequences, use `--keys '["Command+L", "Enter"]'`. In browser windows, `Command+L` focuses the address/search field via AX.
+- `scroll` can use `--ref @eN` for an AX scroll target or `--scrollY`/`--scrollX` with coordinates. `drag` can use `--ref @eN` for sliders/steppers with AX `adjust` capability, otherwise `--path` with space-separated x,y pairs like `10,20 100,200` (legacy JSON also accepted).
+- For shortcut sequences, use `--keys Command+L,Enter`. In browser windows, `Command+L` focuses the address/search field via AX. Legacy JSON format (`--keys '["Enter"]'`) is also accepted.
 - `computer_actions` executes 1–20 actions with one state update plus per-action metadata. Do not batch if the next action depends on seeing an intermediate result.
 - `wait --ms N` pauses then returns the latest semantic state for polling/loading.
 - Run `/computer-use` in pi to inspect the effective config. Config files: `~/.pi/agent/extensions/pi-computer-use.json` (global) and `.pi/computer-use.json` (per project).
