@@ -5,10 +5,10 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@injaneity/pi-computer-use"><img alt="npm" src="https://img.shields.io/npm/v/@injaneity/pi-computer-use?style=flat-square"></a>
-  <a href="./LICENSE"><img alt="license" src="https://img.shields.io/github/license/injaneity/pi-computer-use?style=flat-square"></a>
+  <a href="https://www.npmjs.com/package/@monotykamary/pi-computer-use"><img alt="npm" src="https://img.shields.io/npm/v/@monotykamary/pi-computer-use?style=flat-square"></a>
+  <a href="./LICENSE"><img alt="license" src="https://img.shields.io/github/license/monotykamary/pi-computer-use?style=flat-square"></a>
   <img alt="platform" src="https://img.shields.io/badge/platform-macOS-lightgrey?style=flat-square">
-  <a href="https://github.com/injaneity/pi-computer-use/actions/workflows/ci.yml"><img alt="ci" src="https://img.shields.io/github/actions/workflow/status/injaneity/pi-computer-use/ci.yml?branch=main&style=flat-square"></a>
+  <a href="https://github.com/monotykamary/pi-computer-use/actions/workflows/ci.yml"><img alt="ci" src="https://img.shields.io/github/actions/workflow/status/monotykamary/pi-computer-use/ci.yml?branch=main&style=flat-square"></a>
 </p>
 
 macOS computer-use for [Pi](https://pi.dev/) via harness server and CLI.
@@ -31,7 +31,7 @@ macOS computer-use for [Pi](https://pi.dev/) via harness server and CLI.
 Install the Pi package:
 
 ```bash
-pi install git:github.com/injaneity/pi-computer-use@v0.3.0
+pi install git:github.com/monotykamary/pi-computer-use
 ```
 
 Start Pi in interactive mode. On the first session, grant macOS permissions to:
@@ -62,7 +62,7 @@ Use `/computer-use` in Pi to inspect the effective config.
 
 1. **The CLI** (`harness/cli.ts`) — `pi-computer-use screenshot`, `pi-computer-use click @e1`, etc. Auto-spawns the harness server on first use.
 2. **The harness server** (`harness/server.ts`) — a long-lived HTTP server that holds the native Swift helper process and all runtime state (current window, AX targets, capture metadata). Every CLI call dispatches to the same server, so state survives across calls.
-3. **The TypeScript bridge** (`src/bridge.ts`) — manages the current window, capture IDs, AX refs, fallback policy, batching, and execution metadata. Imported by the harness server.
+3. **The TypeScript bridge** (`src/*.ts`) — modular bridge split across nine files: types, constants, runtime state, helper IPC, discovery, targeting, capture, actions, and the public perform* API. Imported by the harness server.
 4. **The native Swift helper** (`native/macos/bridge.swift`) — talks to macOS Accessibility, ScreenCaptureKit, AppKit, and CoreGraphics.
 5. **The Pi extension** (`extensions/computer-use.ts`) — thin lifecycle shell: installs the CLI alias, starts/stops the harness server, provides `/computer-use` for config inspection. Registers **no tools** — all interactions go through the CLI.
 
@@ -167,26 +167,26 @@ npm run benchmark:qa:full
 
 ## Release & Install Notes
 
-The package is published on npm as `@injaneity/pi-computer-use`.
+The package is published on npm as `@monotykamary/pi-computer-use`.
 
 ```bash
-npm install @injaneity/pi-computer-use
-npm install @injaneity/pi-computer-use@0.3.0
+npm install @monotykamary/pi-computer-use
+npm install @monotykamary/pi-computer-use@0.3.0
 ```
 
 Pi installs should pin a GitHub release tag:
 
 ```bash
-pi install git:github.com/injaneity/pi-computer-use@v0.3.0
-pi install -l git:github.com/injaneity/pi-computer-use@v0.3.0
+pi install git:github.com/monotykamary/pi-computer-use@v0.3.0
+pi install -l git:github.com/monotykamary/pi-computer-use@v0.3.0
 pi install /absolute/path/to/pi-computer-use
 ```
 
 Remove:
 
 ```bash
-pi remove git:github.com/injaneity/pi-computer-use@v0.3.0
-npm remove @injaneity/pi-computer-use
+pi remove git:github.com/monotykamary/pi-computer-use@v0.3.0
+npm remove @monotykamary/pi-computer-use
 ```
 
 ## Screenshots

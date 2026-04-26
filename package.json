@@ -1,5 +1,5 @@
 {
-  "name": "@injaneity/pi-computer-use",
+  "name": "@monotykamary/pi-computer-use",
   "version": "0.3.0",
   "description": "macOS computer-use for Pi via harness server and CLI.",
   "type": "module",
@@ -15,12 +15,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/injaneity/pi-computer-use.git"
+    "url": "git+https://github.com/monotykamary/pi-computer-use.git"
   },
   "bugs": {
-    "url": "https://github.com/injaneity/pi-computer-use/issues"
+    "url": "https://github.com/monotykamary/pi-computer-use/issues"
   },
-  "homepage": "https://github.com/injaneity/pi-computer-use#readme",
+  "homepage": "https://github.com/monotykamary/pi-computer-use#readme",
   "engines": {
     "node": ">=20.6.0"
   },
