@@ -167,50 +167,6 @@ function ensureHelperCurrent(): void {
 	}
 }
 
-function makeCtx(branchEntries: any[] = []): any {
-	return {
-		hasUI: false,
-		ui: {
-			select: async () => undefined,
-			confirm: async () => false,
-			input: async () => undefined,
-			notify: () => undefined,
-			onTerminalInput: () => () => undefined,
-			setStatus: () => undefined,
-			setWorkingMessage: () => undefined,
-			setHiddenThinkingLabel: () => undefined,
-			setWidget: () => undefined,
-			setFooter: () => undefined,
-			setHeader: () => undefined,
-			setTitle: () => undefined,
-			custom: async () => undefined,
-			pasteToEditor: () => undefined,
-			setEditorText: () => undefined,
-			getEditorText: () => "",
-			editor: async () => undefined,
-			setEditorComponent: () => undefined,
-			theme: {} as any,
-			getAllThemes: () => [],
-			getTheme: () => undefined,
-			setTheme: () => ({ success: false }),
-			getToolsExpanded: () => false,
-			setToolsExpanded: () => undefined,
-		},
-		cwd: process.cwd(),
-		sessionManager: { getBranch: () => branchEntries },
-		modelRegistry: undefined,
-		model: undefined,
-		isIdle: () => true,
-		signal: undefined,
-		abort: () => undefined,
-		hasPendingMessages: () => false,
-		shutdown: () => undefined,
-		getContextUsage: () => undefined,
-		compact: () => undefined,
-		getSystemPrompt: () => "",
-	};
-}
-
 function runCommand(command: string, args: string[]): string {
 	return execFileSync(command, args, { encoding: "utf8" }).trim();
 }

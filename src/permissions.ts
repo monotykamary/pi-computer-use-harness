@@ -12,7 +12,4 @@ export interface PermissionStatus {
 	screenRecording: boolean;
 }
 
-export interface PermissionBridge {
-	checkPermissions(signal?: AbortSignal): Promise<PermissionStatus>;
-	openPermissionPane(kind: "accessibility" | "screenRecording", signal?: AbortSignal): Promise<void>;
-}
+

@@ -48,6 +48,7 @@
   },
   "scripts": {
     "postinstall": "node scripts/setup-helper.mjs --postinstall",
+    "lint:dead": "knip --no-gitignore",
     "typecheck": "tsc -p tsconfig.json",
     "build:native": "node scripts/build-native.mjs",
     "benchmark:qa": "npx -y tsx benchmarks/qa.ts --allow-foreground-qa",
@@ -58,6 +59,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "knip": "^6.7.0",
     "typescript": "^6.0.3"
   }
 }

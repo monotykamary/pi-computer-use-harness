@@ -296,13 +296,7 @@ interface FrontmostResult {
 	windowId?: number;
 }
 
-interface RestoreUserFocusResult {
-	restored: boolean;
-	appRestored?: boolean;
-	windowRestored?: boolean;
-	appName?: string;
-	windowTitle?: string;
-}
+
 
 interface ScreenshotPayload {
 	pngBase64: string;
@@ -433,7 +427,6 @@ interface RuntimeState {
 	helperStdoutBuffer: string;
 	pending: Map<string, PendingRequest>;
 	requestSequence: number;
-	queueTail: Promise<void>;
 	permissionStatus?: PermissionStatus;
 	lastPermissionCheckAt: number;
 	helperInstallChecked: boolean;
@@ -520,8 +513,6 @@ const CHROME_FAMILY_APP_NAMES = new Set([
 	"helium",
 ]);
 const BROWSER_WINDOW_OPEN_TIMEOUT_MS = 10_000;
-const BROWSER_WINDOW_OPEN_POLL_MS = 200;
-const BROWSER_WINDOW_OPEN_ATTEMPTS = 12;
 
 export const HELPER_STABLE_PATH = path.join(os.homedir(), ".pi", "agent", "helpers", "pi-computer-use", "bridge");
 
@@ -532,7 +523,6 @@ const runtimeState: RuntimeState = {
 	helperStdoutBuffer: "",
 	pending: new Map(),
 	requestSequence: 0,
-	queueTail: Promise.resolve(),
 	lastPermissionCheckAt: 0,
 	helperInstallChecked: false,
 	allowNextTypeTextAxReplacement: false,
@@ -649,21 +639,6 @@ async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 
 		signal?.addEventListener("abort", onAbort, { once: true });
 	});
-}
-
-export async function withRuntimeLock<T>(work: () => Promise<T>): Promise<T> {
-	const previous = runtimeState.queueTail;
-	let release!: () => void;
-	runtimeState.queueTail = new Promise<void>((resolve) => {
-		release = resolve;
-	});
-
-	await previous.catch(() => undefined);
-	try {
-		return await work();
-	} finally {
-		release();
-	}
 }
 
 function windowWriteLockKey(target: ResolvedTarget | CurrentTarget): string {
@@ -1099,7 +1074,7 @@ async function startBridgeProcess(): Promise<ChildProcessWithoutNullStreams> {
 	});
 
 	child.stderr.on("data", (_chunk: string) => {
-		// helper diagnostics are intentionally not forwarded to tool output
+		// helper diagnostics are intentionally not forwarded to harness output
 	});
 
 	child.on("error", (error) => {
@@ -1365,31 +1340,6 @@ async function getFrontmost(signal?: AbortSignal): Promise<FrontmostResult> {
 	};
 }
 
-async function beginInputSuppression(signal?: AbortSignal): Promise<void> {
-	await bridgeCommand("beginInputSuppression", {}, { signal, timeoutMs: COMMAND_TIMEOUT_MS });
-}
-
-async function endInputSuppression(signal?: AbortSignal): Promise<void> {
-	await bridgeCommand("endInputSuppression", {}, { signal, timeoutMs: COMMAND_TIMEOUT_MS }).catch(() => undefined);
-}
-
-async function restoreUserFocus(target: FrontmostResult, signal?: AbortSignal): Promise<void> {
-	const restoreResult = await bridgeCommand<RestoreUserFocusResult>(
-		"restoreUserFocus",
-		{ pid: target.pid, windowTitle: target.windowTitle },
-		{ signal, timeoutMs: COMMAND_TIMEOUT_MS },
-	).catch(() => undefined);
-
-	if (isStrictAxMode() || toBoolean(restoreResult?.windowRestored) || toBoolean(restoreResult?.appRestored)) {
-		return;
-	}
-
-	const activateTarget = target.bundleId
-		? `application id "${escapeAppleScriptString(target.bundleId)}"`
-		: `application "${escapeAppleScriptString(target.appName)}"`;
-	await runAppleScript([`tell ${activateTarget} to activate`], signal).catch(() => undefined);
-}
-
 async function focusControlledWindow(target: ResolvedTarget, signal?: AbortSignal): Promise<void> {
 	const result = await bridgeCommand<FocusWindowResult>(
 		"focusWindow",
@@ -1493,29 +1443,7 @@ function escapeAppleScriptString(value: string): string {
 	return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
 }
 
-function buildBrowserNewWindowAppleScript(app: HelperApp): string[] | undefined {
-	const normalizedName = normalizeText(app.appName);
-	const target = app.bundleId
-		? `application id "${escapeAppleScriptString(app.bundleId)}"`
-		: `application "${escapeAppleScriptString(app.appName)}"`;
 
-	if (app.bundleId === "com.apple.Safari" || normalizedName === "safari") {
-		return [`tell ${target} to make new document`];
-	}
-
-	if (CHROME_FAMILY_BUNDLE_IDS.has(app.bundleId ?? "") || CHROME_FAMILY_APP_NAMES.has(normalizedName)) {
-		return [`tell ${target} to make new window`];
-	}
-
-	if (app.bundleId === "org.mozilla.firefox" || normalizedName === "firefox") {
-		return [
-			`tell ${target} to activate`,
-			'tell application "System Events" to keystroke "n" using command down',
-		];
-	}
-
-	return undefined;
-}
 
 async function runAppleScript(lines: string[], signal?: AbortSignal): Promise<void> {
 	const args = lines.flatMap((line) => ["-e", line]);
@@ -1557,63 +1485,7 @@ async function openBrowserLocationFromPendingAddress(keys: string[], target: Res
 	return true;
 }
 
-function findNewWindow(before: HelperWindow[], after: HelperWindow[]): HelperWindow | undefined {
-	const previous = new Set(before.map(windowIdentity));
-	const added = after.filter((window) => !previous.has(windowIdentity(window)));
-	if (added.length > 0) {
-		return choosePreferredWindow(added, "browser");
-	}
 
-	const promoted = after.filter((window) => {
-		const match = before.find((candidate) => windowIdentity(candidate) === windowIdentity(window));
-		if (!match) return false;
-		return (window.isFocused && !match.isFocused) || (window.isMain && !match.isMain);
-	});
-	if (promoted.length > 0) {
-		return choosePreferredWindow(promoted, "browser");
-	}
-
-	return undefined;
-}
-
-async function openIsolatedBrowserWindow(app: HelperApp, signal?: AbortSignal): Promise<HelperWindow | undefined> {
-	const script = buildBrowserNewWindowAppleScript(app);
-	if (!script) {
-		return undefined;
-	}
-	if (isStrictAxMode()) {
-		strictModeBlock(
-			`Strict AX mode cannot create an isolated browser window for '${app.appName}' because that bootstrap is not AX-only. Open a dedicated browser window first, then call screenshot again.`,
-		);
-	}
-
-	const previousFrontmost = await getFrontmost(signal).catch(() => undefined);
-	const before = await listWindows(app.pid, signal);
-	await runAppleScript(script, signal);
-
-	await beginInputSuppression(signal);
-	try {
-		for (let attempt = 0; attempt < BROWSER_WINDOW_OPEN_ATTEMPTS; attempt += 1) {
-			await sleep(BROWSER_WINDOW_OPEN_POLL_MS, signal);
-			const after = await listWindows(app.pid, signal);
-			const created = findNewWindow(before, after);
-			if (created) {
-				return created;
-			}
-			const focused = after.find((window) => window.isFocused) ?? after.find((window) => window.isMain);
-			if (focused && !before.some((window) => windowIdentity(window) === windowIdentity(focused))) {
-				return focused;
-			}
-		}
-
-		return undefined;
-	} finally {
-		if (previousFrontmost) {
-			await restoreUserFocus(previousFrontmost, signal);
-		}
-		await endInputSuppression(signal);
-	}
-}
 
 function choosePreferredWindow(windows: HelperWindow[], appName: string): HelperWindow {
 	if (!windows.length) {
@@ -2154,7 +2026,7 @@ async function captureCurrentTarget(signal?: AbortSignal, priorActivation = empt
 	};
 }
 
-async function buildToolResult(
+async function buildActionResult(
 	tool: string,
 	summary: string,
 	result: CaptureResult,
@@ -2857,7 +2729,7 @@ async function runCoordinateAction(
 
 			await sleep(settleMsForExecution(execution), signal);
 			const captureResult = await captureCurrentTarget(signal, activation);
-			return await buildToolResult(tool, summaryFactory(captureResult.target), captureResult, execution, signal);
+			return await buildActionResult(tool, summaryFactory(captureResult.target), captureResult, execution, signal);
 		});
 	} catch (error) {
 		if (stateMayHaveChanged) {
@@ -2959,7 +2831,7 @@ export async function performScreenshot(params: ScreenshotParams, signal?: Abort
 		);
 	}
 	const summary = `Captured ${captureResult.target.windowRef ? `${captureResult.target.windowRef} ` : ""}${captureResult.target.appName} — ${captureResult.target.windowTitle}. Returned the latest semantic window state.`;
-	return await buildToolResult("screenshot", summary, captureResult, executionTrace("screenshot", "stealth", { fallbackUsed: false }), signal, normalizeImageMode(params.image));
+	return await buildActionResult("screenshot", summary, captureResult, executionTrace("screenshot", "stealth", { fallbackUsed: false }), signal, normalizeImageMode(params.image));
 }
 
 export async function performClick(params: ClickParams, signal?: AbortSignal): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
@@ -3004,7 +2876,7 @@ export async function performTypeText(params: TypeTextParams, signal?: AbortSign
 			await sleep(settleMsForExecution(execution), signal);
 			const captureResult = await captureCurrentTarget(signal, activation);
 			const summary = `Inserted text in ${captureResult.target.appName} — ${captureResult.target.windowTitle}. Returned the latest semantic window state.`;
-			return await buildToolResult("type_text", summary, captureResult, execution, signal);
+			return await buildActionResult("type_text", summary, captureResult, execution, signal);
 		});
 	} catch (error) {
 		if (stateMayHaveChanged) {
@@ -3031,7 +2903,7 @@ export async function performSetText(params: SetTextParams, signal?: AbortSignal
 			await sleep(settleMsForExecution(execution), signal);
 			const captureResult = await captureCurrentTarget(signal, activation);
 			const summary = `Set text value in ${captureResult.target.appName} — ${captureResult.target.windowTitle}. Returned the latest semantic window state.`;
-			return await buildToolResult("set_text", summary, captureResult, execution, signal);
+			return await buildActionResult("set_text", summary, captureResult, execution, signal);
 		});
 	} catch (error) {
 		if (stateMayHaveChanged) {
@@ -3058,7 +2930,7 @@ export async function performKeypress(params: KeypressParams, signal?: AbortSign
 			await sleep(settleMsForExecution(execution), signal);
 			const captureResult = await captureCurrentTarget(signal, activation);
 			const summary = `Pressed ${keys.length} key${keys.length === 1 ? "" : "s"} in ${captureResult.target.appName} — ${captureResult.target.windowTitle}. Returned the latest semantic window state.`;
-			return await buildToolResult("keypress", summary, captureResult, execution, signal);
+			return await buildActionResult("keypress", summary, captureResult, execution, signal);
 		});
 	} catch (error) {
 		if (stateMayHaveChanged) {
@@ -3217,7 +3089,7 @@ export async function performArrangeWindow(params: ArrangeWindowParams, signal?:
 		}
 		await sleep(ACTION_SETTLE_MS, signal);
 		const captureResult = await captureCurrentTarget(signal);
-		return await buildToolResult(
+		return await buildActionResult(
 			"arrange_window",
 			`Arranged ${captureResult.target.windowRef ? `${captureResult.target.windowRef} ` : ""}${captureResult.target.appName} — ${captureResult.target.windowTitle}. Returned the latest semantic window state.`,
 			captureResult,
@@ -3248,7 +3120,7 @@ export async function performNavigateBrowser(params: NavigateBrowserParams, sign
 		await runAppleScript(script, signal);
 		await sleep(ACTION_SETTLE_MS, signal);
 		const captureResult = await captureCurrentTarget(signal);
-		return await buildToolResult(
+		return await buildActionResult(
 			"navigate_browser",
 			`Navigated ${captureResult.target.windowRef ? `${captureResult.target.windowRef} ` : ""}${captureResult.target.appName} — ${captureResult.target.windowTitle}. Returned the latest semantic window state.`,
 			captureResult,
@@ -3345,7 +3217,7 @@ export async function performComputerActions(params: ComputerActionsParams, sign
 		await sleep(settleMsForExecution(execution), signal);
 		const captureResult = await captureCurrentTarget(signal, activation);
 		const summary = `Executed ${actions.length} computer action${actions.length === 1 ? "" : "s"} in ${captureResult.target.appName} — ${captureResult.target.windowTitle}. Returned the latest semantic window state.`;
-		return await buildToolResult("computer_actions", summary, captureResult, execution, signal);
+		return await buildActionResult("computer_actions", summary, captureResult, execution, signal);
 	} catch (error) {
 		if (stateMayHaveChanged) {
 			await sleep(ACTION_SETTLE_MS, signal).catch(() => undefined);
@@ -3372,7 +3244,7 @@ export async function performWait(params: WaitParams, signal?: AbortSignal): Pro
 	await sleep(ms, signal);
 	const captureResult = await captureCurrentTarget(signal);
 	const summary = `Waited ${ms}ms in ${captureResult.target.appName} — ${captureResult.target.windowTitle}. Returned the latest semantic window state.`;
-	return await buildToolResult("wait", summary, captureResult, executionTrace("wait", "stealth", { fallbackUsed: false }), signal);
+	return await buildActionResult("wait", summary, captureResult, executionTrace("wait", "stealth", { fallbackUsed: false }), signal);
 }
 
 export function stopBridge(): void {
