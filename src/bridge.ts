@@ -180,7 +180,7 @@ interface BatchActionTrace {
 }
 
 export interface ComputerUseDetails {
-	tool: string;
+	action: string;
 	target: {
 		app: string;
 		bundleId?: string;
@@ -222,7 +222,7 @@ export interface ComputerUseDetails {
 }
 
 export interface ListAppsDetails {
-	tool: "list_apps";
+	action: "list_apps";
 	apps: Array<{
 		app: string;
 		bundleId?: string;
@@ -237,7 +237,7 @@ export interface ListAppsDetails {
 }
 
 export interface ListWindowsDetails {
-	tool: "list_windows";
+	action: "list_windows";
 	query: ListWindowsParams;
 	windows: Array<{
 		app: string;
@@ -771,7 +771,7 @@ function axDiagnosticsFromResult(result: unknown, target: ResolvedTarget): Captu
 	const reason = toOptionalString((result as any)?.reason);
 	if (!reason) return undefined;
 	if (reason === "window_not_found") {
-		const windowHint = target.windowRef ? ` Use list_windows and choose an existing content window such as ${target.windowRef}, then call screenshot({ window: "${target.windowRef}" }).` : " Use list_windows and choose an existing content window.";
+		const windowHint = target.windowRef ? ` Use list_windows and choose an existing content window such as ${target.windowRef}, then call: pi-computer-use screenshot --window ${target.windowRef}.` : " Use list_windows and choose an existing content window.";
 		return { reason, message: `Accessibility could not resolve the target browser window. Duplicate/empty browser windows can cause this.${windowHint}` };
 	}
 	return { reason, message: `Accessibility target listing returned '${reason}'.` };
@@ -868,7 +868,7 @@ async function reacquireAxTarget(stale: AxTarget, target: ResolvedTarget, signal
 }
 
 function imageFallbackReason(
-	tool: string,
+	action: string,
 	result: CaptureResult,
 	execution: ExecutionTrace,
 	imageMode: ImageMode = "auto",
@@ -907,7 +907,7 @@ function imageFallbackReason(
 	if (labels.length > 3 && new Set(labels).size * 2 <= labels.length) {
 		return { reason: "duplicated_ax_labels", message: "AX target labels are highly duplicated, so an image is attached for extra context." }
 	}
-	if (tool === "wait" && isBrowserApp(result.target.appName, result.target.bundleId)) {
+	if (action === "wait" && isBrowserApp(result.target.appName, result.target.bundleId)) {
 		return { reason: "browser_wait_verification", message: "Browser content may have changed visually during wait, so an image is attached for fallback." }
 	}
 	return undefined
@@ -2027,20 +2027,20 @@ async function captureCurrentTarget(signal?: AbortSignal, priorActivation = empt
 }
 
 async function buildActionResult(
-	tool: string,
+	action: string,
 	summary: string,
 	result: CaptureResult,
 	execution: ExecutionTrace,
 	signal?: AbortSignal,
 	imageMode: ImageMode = runtimeState.currentImageMode ?? "auto",
 ): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
-	const fallbackReason = imageFallbackReason(tool, result, execution, imageMode);
+	const fallbackReason = imageFallbackReason(action, result, execution, imageMode);
 	if (fallbackReason) {
 		await ensureCaptureImage(result, signal);
 	}
 
 	const details: ComputerUseDetails = {
-		tool,
+		action,
 		target: {
 			app: result.target.appName,
 			bundleId: result.target.bundleId,
@@ -2711,7 +2711,7 @@ async function dispatchDrag(
 }
 
 async function runCoordinateAction(
-	tool: string,
+	action: string,
 	capture: CurrentCapture,
 	signal: AbortSignal | undefined,
 	dispatch: (target: ResolvedTarget) => Promise<ExecutionTrace>,
@@ -2729,7 +2729,7 @@ async function runCoordinateAction(
 
 			await sleep(settleMsForExecution(execution), signal);
 			const captureResult = await captureCurrentTarget(signal, activation);
-			return await buildActionResult(tool, summaryFactory(captureResult.target), captureResult, execution, signal);
+			return await buildActionResult(action, summaryFactory(captureResult.target), captureResult, execution, signal);
 		});
 	} catch (error) {
 		if (stateMayHaveChanged) {
@@ -2743,7 +2743,7 @@ export async function performListApps(signal?: AbortSignal): Promise<{ content: 
 	const apps = await listApps(signal);
 	const config = getComputerUseConfig();
 	const details: ListAppsDetails = {
-		tool: "list_apps",
+		action: "list_apps",
 		apps: apps.map((app) => ({
 			app: app.appName,
 			bundleId: app.bundleId,
@@ -2801,10 +2801,10 @@ export async function performListWindows(params: ListWindowsParams, signal?: Abo
 	}
 	windows.sort((a, b) => b.score - a.score || a.app.localeCompare(b.app) || a.windowTitle.localeCompare(b.windowTitle));
 
-	const details: ListWindowsDetails = { tool: "list_windows", query, windows, config };
+	const details: ListWindowsDetails = { action: "list_windows", query, windows, config };
 	const lines = windows.map(formatWindowLine);
 	const text = lines.length
-		? `Found ${lines.length} controllable window${lines.length === 1 ? "" : "s"}. Use the @w refs with screenshot({ window: "@wN" }) or action tools' optional window field.\n${lines.join("\n")}`
+		? `Found ${lines.length} controllable window${lines.length === 1 ? "" : "s"}. Use the @w refs with: pi-computer-use screenshot --window @wN\n${lines.join("\n")}`
 		: `No controllable windows matched the query. Try opening a window, or call list_apps to confirm the app is running.`;
 	return { content: [{ type: "text", text }], details };
 }
