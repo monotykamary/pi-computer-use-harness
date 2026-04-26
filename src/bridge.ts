@@ -5,9 +5,10 @@ import { access } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AgentToolResult, AgentToolUpdateCallback, ExtensionContext } from "@mariozechner/pi-coding-agent";
+// No pi-coding-agent imports — this module is used by the harness server,
+// which runs outside pi's process and has no ExtensionContext or AgentToolResult.
 import { getComputerUseConfig, isBrowserUseEnabled, isStrictAxMode, loadComputerUseConfig } from "./config.ts";
-import { ensurePermissions, type PermissionStatus } from "./permissions.ts";
+import type { PermissionStatus } from "./permissions.ts";
 
 type WindowSelector = string | number;
 type ImageMode = "auto" | "always" | "never";
@@ -373,7 +374,7 @@ interface PendingRequest {
 	abortListener?: () => void;
 }
 
-interface AxTarget {
+export interface AxTarget {
 	ref: string;
 	elementRef: string;
 	role: string;
@@ -650,7 +651,7 @@ async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 	});
 }
 
-async function withRuntimeLock<T>(work: () => Promise<T>): Promise<T> {
+export async function withRuntimeLock<T>(work: () => Promise<T>): Promise<T> {
 	const previous = runtimeState.queueTail;
 	let release!: () => void;
 	runtimeState.queueTail = new Promise<void>((resolve) => {
@@ -1201,8 +1202,16 @@ async function checkPermissions(signal?: AbortSignal): Promise<PermissionStatus>
 	};
 }
 
-async function ensureReady(ctx: ExtensionContext, signal?: AbortSignal): Promise<void> {
-	loadComputerUseConfig(ctx.cwd);
+/**
+ * Ensure the helper is installed, the bridge process is running,
+ * and macOS permissions are granted.
+ *
+ * In the harness server context there is no ExtensionContext for UI,
+ * so permissions that require interactive setup will throw with
+ * a clear message directing the user to start pi interactively.
+ */
+async function ensureReady(signal?: AbortSignal): Promise<void> {
+	loadComputerUseConfig(os.homedir());
 
 	if (process.platform !== "darwin") {
 		throw new Error(NON_MACOS_ERROR);
@@ -1227,16 +1236,9 @@ async function ensureReady(ctx: ExtensionContext, signal?: AbortSignal): Promise
 	runtimeState.lastPermissionCheckAt = now;
 
 	if (!status.accessibility || !status.screenRecording) {
-		status = await ensurePermissions(
-			ctx,
-			{
-				checkPermissions: (permissionSignal) => checkPermissions(permissionSignal ?? signal),
-				openPermissionPane: async (kind, permissionSignal) => {
-					await bridgeCommand("openPermissionPane", { kind }, { signal: permissionSignal ?? signal });
-				},
-			},
-			HELPER_STABLE_PATH,
-			signal,
+		throw new Error(
+			`pi-computer-use needs Accessibility and Screen Recording permissions for the helper at ${HELPER_STABLE_PATH}. ` +
+			`Start pi in interactive mode to grant them, or open System Settings → Privacy & Security and grant permissions manually.`,
 		);
 	}
 
@@ -1244,8 +1246,18 @@ async function ensureReady(ctx: ExtensionContext, signal?: AbortSignal): Promise
 	runtimeState.lastPermissionCheckAt = Date.now();
 }
 
-export async function ensureComputerUseSetup(ctx: ExtensionContext, signal?: AbortSignal): Promise<void> {
-	await ensureReady(ctx, signal);
+/** Ensure the bridge process is ready (harness server entry point). */
+export async function ensureBridgeReady(signal?: AbortSignal): Promise<void> {
+	await ensureReady(signal);
+}
+
+/** Get a snapshot of the current runtime state for the health endpoint. */
+export function getRuntimeStateSnapshot(): { hasTarget: boolean; hasCapture: boolean; config: { browser_use: boolean; stealth_mode: boolean } } {
+	return {
+		hasTarget: runtimeState.currentTarget !== undefined,
+		hasCapture: runtimeState.currentCapture !== undefined,
+		config: getComputerUseConfig(),
+	};
 }
 
 function parseApps(result: unknown): HelperApp[] {
@@ -2059,7 +2071,7 @@ async function recoverCaptureFromHelperFailure(
 	throw lastError;
 }
 
-interface CaptureResult {
+export interface CaptureResult {
 	target: ResolvedTarget;
 	capture: CurrentCapture;
 	image?: ScreenshotPayload;
@@ -2149,7 +2161,7 @@ async function buildToolResult(
 	execution: ExecutionTrace,
 	signal?: AbortSignal,
 	imageMode: ImageMode = runtimeState.currentImageMode ?? "auto",
-): Promise<AgentToolResult<ComputerUseDetails>> {
+): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
 	const fallbackReason = imageFallbackReason(tool, result, execution, imageMode);
 	if (fallbackReason) {
 		await ensureCaptureImage(result, signal);
@@ -2186,7 +2198,7 @@ async function buildToolResult(
 		? `\n\nPrefer these AX targets over coordinate clicks or focus-based text replacement when one matches your intent:\n${result.axTargets.map(formatAxTargetLabel).join("\n")}`
 		: "";
 	const fallbackText = fallbackReason ? `\n\n${fallbackReason.message}` : "";
-	const content: AgentToolResult<ComputerUseDetails>["content"] = [{ type: "text", text: `${summary}${axTargetText}${fallbackText}` }];
+	const content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> = [{ type: "text", text: `${summary}${axTargetText}${fallbackText}` }];
 	if (fallbackReason) {
 		content.push({ type: "image", data: result.image!.pngBase64, mimeType: "image/png" });
 	}
@@ -2832,7 +2844,7 @@ async function runCoordinateAction(
 	signal: AbortSignal | undefined,
 	dispatch: (target: ResolvedTarget) => Promise<ExecutionTrace>,
 	summaryFactory: (target: ResolvedTarget) => string,
-): Promise<AgentToolResult<ComputerUseDetails>> {
+): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
 	const currentTarget = await resolveCurrentTarget(signal);
 	let activation = emptyActivation();
 	let stateMayHaveChanged = false;
@@ -2855,7 +2867,7 @@ async function runCoordinateAction(
 	}
 }
 
-async function performListApps(signal?: AbortSignal): Promise<AgentToolResult<ListAppsDetails>> {
+export async function performListApps(signal?: AbortSignal): Promise<{ content: Array<{ type: string; text: string }>; details: ListAppsDetails }> {
 	const apps = await listApps(signal);
 	const config = getComputerUseConfig();
 	const details: ListAppsDetails = {
@@ -2876,7 +2888,7 @@ async function performListApps(signal?: AbortSignal): Promise<AgentToolResult<Li
 	return { content: [{ type: "text", text }], details };
 }
 
-async function performListWindows(params: ListWindowsParams, signal?: AbortSignal): Promise<AgentToolResult<ListWindowsDetails>> {
+export async function performListWindows(params: ListWindowsParams, signal?: AbortSignal): Promise<{ content: Array<{ type: string; text: string }>; details: ListWindowsDetails }> {
 	const rawParams = params ?? {};
 	const query: ListWindowsParams = {
 		app: trimOrUndefined(rawParams.app),
@@ -2929,7 +2941,7 @@ function normalizeImageMode(value: unknown): ImageMode {
 	return value === "always" || value === "never" ? value : "auto";
 }
 
-async function performScreenshot(params: ScreenshotParams, signal?: AbortSignal): Promise<AgentToolResult<ComputerUseDetails>> {
+export async function performScreenshot(params: ScreenshotParams, signal?: AbortSignal): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
 	runtimeState.currentImageMode = normalizeImageMode(params.image);
 	const selection = {
 		app: trimOrUndefined(params.app),
@@ -2950,7 +2962,7 @@ async function performScreenshot(params: ScreenshotParams, signal?: AbortSignal)
 	return await buildToolResult("screenshot", summary, captureResult, executionTrace("screenshot", "stealth", { fallbackUsed: false }), signal, normalizeImageMode(params.image));
 }
 
-async function performClick(params: ClickParams, signal?: AbortSignal): Promise<AgentToolResult<ComputerUseDetails>> {
+export async function performClick(params: ClickParams, signal?: AbortSignal): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
 	runtimeState.currentImageMode = normalizeImageMode(params.image);
 	await selectWindowIfProvided(params.window, signal);
 	const capture = validateStateId(params.stateId);
@@ -2975,7 +2987,7 @@ async function performClick(params: ClickParams, signal?: AbortSignal): Promise<
 	);
 }
 
-async function performTypeText(params: TypeTextParams, signal?: AbortSignal): Promise<AgentToolResult<ComputerUseDetails>> {
+export async function performTypeText(params: TypeTextParams, signal?: AbortSignal): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
 	runtimeState.currentImageMode = normalizeImageMode(params.image);
 	await selectWindowIfProvided(params.window, signal);
 	const text = typeof params.text === "string" ? params.text : "";
@@ -3002,7 +3014,7 @@ async function performTypeText(params: TypeTextParams, signal?: AbortSignal): Pr
 	}
 }
 
-async function performSetText(params: SetTextParams, signal?: AbortSignal): Promise<AgentToolResult<ComputerUseDetails>> {
+export async function performSetText(params: SetTextParams, signal?: AbortSignal): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
 	runtimeState.currentImageMode = normalizeImageMode(params.image);
 	await selectWindowIfProvided(params.window, signal);
 	const text = typeof params.text === "string" ? params.text : "";
@@ -3029,7 +3041,7 @@ async function performSetText(params: SetTextParams, signal?: AbortSignal): Prom
 	}
 }
 
-async function performKeypress(params: KeypressParams, signal?: AbortSignal): Promise<AgentToolResult<ComputerUseDetails>> {
+export async function performKeypress(params: KeypressParams, signal?: AbortSignal): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
 	runtimeState.currentImageMode = normalizeImageMode(params.image);
 	await selectWindowIfProvided(params.window, signal);
 	const keys = normalizeKeyList(params.keys);
@@ -3056,7 +3068,7 @@ async function performKeypress(params: KeypressParams, signal?: AbortSignal): Pr
 	}
 }
 
-async function performScroll(params: ScrollParams, signal?: AbortSignal): Promise<AgentToolResult<ComputerUseDetails>> {
+export async function performScroll(params: ScrollParams, signal?: AbortSignal): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
 	runtimeState.currentImageMode = normalizeImageMode(params.image);
 	await selectWindowIfProvided(params.window, signal);
 	const capture = validateStateId(params.stateId);
@@ -3075,7 +3087,7 @@ async function performScroll(params: ScrollParams, signal?: AbortSignal): Promis
 	);
 }
 
-async function performMoveMouse(params: MoveMouseParams, signal?: AbortSignal): Promise<AgentToolResult<ComputerUseDetails>> {
+export async function performMoveMouse(params: MoveMouseParams, signal?: AbortSignal): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
 	runtimeState.currentImageMode = normalizeImageMode(params.image);
 	await selectWindowIfProvided(params.window, signal);
 	const capture = validateStateId(params.stateId);
@@ -3089,7 +3101,7 @@ async function performMoveMouse(params: MoveMouseParams, signal?: AbortSignal): 
 	);
 }
 
-async function performDrag(params: DragParams, signal?: AbortSignal): Promise<AgentToolResult<ComputerUseDetails>> {
+export async function performDrag(params: DragParams, signal?: AbortSignal): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
 	runtimeState.currentImageMode = normalizeImageMode(params.image);
 	await selectWindowIfProvided(params.window, signal);
 	const capture = validateStateId(params.stateId);
@@ -3102,7 +3114,7 @@ async function performDrag(params: DragParams, signal?: AbortSignal): Promise<Ag
 	);
 }
 
-async function performDoubleClick(params: ClickParams, signal?: AbortSignal): Promise<AgentToolResult<ComputerUseDetails>> {
+export async function performDoubleClick(params: ClickParams, signal?: AbortSignal): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
 	runtimeState.currentImageMode = normalizeImageMode(params.image);
 	await selectWindowIfProvided(params.window, signal);
 	const capture = validateStateId(params.stateId);
@@ -3186,7 +3198,7 @@ function frameForArrangePreset(params: ArrangeWindowParams, target: ResolvedTarg
 	};
 }
 
-async function performArrangeWindow(params: ArrangeWindowParams, signal?: AbortSignal): Promise<AgentToolResult<ComputerUseDetails>> {
+export async function performArrangeWindow(params: ArrangeWindowParams, signal?: AbortSignal): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
 	runtimeState.currentImageMode = normalizeImageMode(params.image);
 	await selectWindowIfProvided(params.window, signal);
 	const target = await ensureTargetWindowId(await resolveCurrentTarget(signal), signal);
@@ -3215,7 +3227,7 @@ async function performArrangeWindow(params: ArrangeWindowParams, signal?: AbortS
 	});
 }
 
-async function performNavigateBrowser(params: NavigateBrowserParams, signal?: AbortSignal): Promise<AgentToolResult<ComputerUseDetails>> {
+export async function performNavigateBrowser(params: NavigateBrowserParams, signal?: AbortSignal): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
 	runtimeState.currentImageMode = normalizeImageMode(params.image);
 	await selectWindowIfProvided(params.window, signal);
 	const target = await ensureTargetWindowId(await resolveCurrentTarget(signal), signal);
@@ -3246,7 +3258,7 @@ async function performNavigateBrowser(params: NavigateBrowserParams, signal?: Ab
 	});
 }
 
-async function performComputerActions(params: ComputerActionsParams, signal?: AbortSignal): Promise<AgentToolResult<ComputerUseDetails>> {
+export async function performComputerActions(params: ComputerActionsParams, signal?: AbortSignal): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
 	runtimeState.currentImageMode = normalizeImageMode(params.image);
 	await selectWindowIfProvided(params.window, signal);
 	const capture = validateStateId(params.stateId);
@@ -3344,7 +3356,7 @@ async function performComputerActions(params: ComputerActionsParams, signal?: Ab
 	}
 }
 
-async function performWait(params: WaitParams, signal?: AbortSignal): Promise<AgentToolResult<ComputerUseDetails>> {
+export async function performWait(params: WaitParams, signal?: AbortSignal): Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; details: ComputerUseDetails }> {
 	runtimeState.currentImageMode = normalizeImageMode(params.image);
 	await selectWindowIfProvided(params.window, signal);
 	if (!runtimeState.currentTarget) {
@@ -3361,250 +3373,6 @@ async function performWait(params: WaitParams, signal?: AbortSignal): Promise<Ag
 	const captureResult = await captureCurrentTarget(signal);
 	const summary = `Waited ${ms}ms in ${captureResult.target.appName} — ${captureResult.target.windowTitle}. Returned the latest semantic window state.`;
 	return await buildToolResult("wait", summary, captureResult, executionTrace("wait", "stealth", { fallbackUsed: false }), signal);
-}
-
-async function executeTool<T>(ctx: ExtensionContext, signal: AbortSignal | undefined, run: () => Promise<T>): Promise<T> {
-	return await withRuntimeLock(async () => {
-		await ensureReady(ctx, signal);
-		throwIfAborted(signal);
-
-		return await run();
-	});
-}
-
-export async function executeListApps(
-	_toolCallId: string,
-	_params: Record<string, never>,
-	signal: AbortSignal | undefined,
-	_onUpdate: AgentToolUpdateCallback<ListAppsDetails> | undefined,
-	ctx: ExtensionContext,
-): Promise<AgentToolResult<ListAppsDetails>> {
-	return await executeTool(ctx, signal, () => performListApps(signal));
-}
-
-export async function executeListWindows(
-	_toolCallId: string,
-	params: ListWindowsParams,
-	signal: AbortSignal | undefined,
-	_onUpdate: AgentToolUpdateCallback<ListWindowsDetails> | undefined,
-	ctx: ExtensionContext,
-): Promise<AgentToolResult<ListWindowsDetails>> {
-	return await executeTool(ctx, signal, () => performListWindows(params, signal));
-}
-
-export async function executeScreenshot(
-	_toolCallId: string,
-	params: ScreenshotParams,
-	signal: AbortSignal | undefined,
-	_onUpdate: AgentToolUpdateCallback<ComputerUseDetails> | undefined,
-	ctx: ExtensionContext,
-): Promise<AgentToolResult<ComputerUseDetails>> {
-	return await executeTool(ctx, signal, () => performScreenshot(params, signal));
-}
-
-export async function executeClick(
-	_toolCallId: string,
-	params: ClickParams,
-	signal: AbortSignal | undefined,
-	_onUpdate: AgentToolUpdateCallback<ComputerUseDetails> | undefined,
-	ctx: ExtensionContext,
-): Promise<AgentToolResult<ComputerUseDetails>> {
-	return await executeTool(ctx, signal, () => performClick(params, signal));
-}
-
-export async function executeDoubleClick(
-	_toolCallId: string,
-	params: ClickParams,
-	signal: AbortSignal | undefined,
-	_onUpdate: AgentToolUpdateCallback<ComputerUseDetails> | undefined,
-	ctx: ExtensionContext,
-): Promise<AgentToolResult<ComputerUseDetails>> {
-	return await executeTool(ctx, signal, () => performDoubleClick(params, signal));
-}
-
-export async function executeMoveMouse(
-	_toolCallId: string,
-	params: MoveMouseParams,
-	signal: AbortSignal | undefined,
-	_onUpdate: AgentToolUpdateCallback<ComputerUseDetails> | undefined,
-	ctx: ExtensionContext,
-): Promise<AgentToolResult<ComputerUseDetails>> {
-	return await executeTool(ctx, signal, () => performMoveMouse(params, signal));
-}
-
-export async function executeDrag(
-	_toolCallId: string,
-	params: DragParams,
-	signal: AbortSignal | undefined,
-	_onUpdate: AgentToolUpdateCallback<ComputerUseDetails> | undefined,
-	ctx: ExtensionContext,
-): Promise<AgentToolResult<ComputerUseDetails>> {
-	return await executeTool(ctx, signal, () => performDrag(params, signal));
-}
-
-export async function executeScroll(
-	_toolCallId: string,
-	params: ScrollParams,
-	signal: AbortSignal | undefined,
-	_onUpdate: AgentToolUpdateCallback<ComputerUseDetails> | undefined,
-	ctx: ExtensionContext,
-): Promise<AgentToolResult<ComputerUseDetails>> {
-	return await executeTool(ctx, signal, () => performScroll(params, signal));
-}
-
-export async function executeKeypress(
-	_toolCallId: string,
-	params: KeypressParams,
-	signal: AbortSignal | undefined,
-	_onUpdate: AgentToolUpdateCallback<ComputerUseDetails> | undefined,
-	ctx: ExtensionContext,
-): Promise<AgentToolResult<ComputerUseDetails>> {
-	return await executeTool(ctx, signal, () => performKeypress(params, signal));
-}
-
-export async function executeTypeText(
-	_toolCallId: string,
-	params: TypeTextParams,
-	signal: AbortSignal | undefined,
-	_onUpdate: AgentToolUpdateCallback<ComputerUseDetails> | undefined,
-	ctx: ExtensionContext,
-): Promise<AgentToolResult<ComputerUseDetails>> {
-	return await executeTool(ctx, signal, () => performTypeText(params, signal));
-}
-
-export async function executeSetText(
-	_toolCallId: string,
-	params: SetTextParams,
-	signal: AbortSignal | undefined,
-	_onUpdate: AgentToolUpdateCallback<ComputerUseDetails> | undefined,
-	ctx: ExtensionContext,
-): Promise<AgentToolResult<ComputerUseDetails>> {
-	return await executeTool(ctx, signal, () => performSetText(params, signal));
-}
-
-export async function executeArrangeWindow(
-	_toolCallId: string,
-	params: ArrangeWindowParams,
-	signal: AbortSignal | undefined,
-	_onUpdate: AgentToolUpdateCallback<ComputerUseDetails> | undefined,
-	ctx: ExtensionContext,
-): Promise<AgentToolResult<ComputerUseDetails>> {
-	return await executeTool(ctx, signal, () => performArrangeWindow(params, signal));
-}
-
-export async function executeNavigateBrowser(
-	_toolCallId: string,
-	params: NavigateBrowserParams,
-	signal: AbortSignal | undefined,
-	_onUpdate: AgentToolUpdateCallback<ComputerUseDetails> | undefined,
-	ctx: ExtensionContext,
-): Promise<AgentToolResult<ComputerUseDetails>> {
-	return await executeTool(ctx, signal, () => performNavigateBrowser(params, signal));
-}
-
-export async function executeComputerActions(
-	_toolCallId: string,
-	params: ComputerActionsParams,
-	signal: AbortSignal | undefined,
-	_onUpdate: AgentToolUpdateCallback<ComputerUseDetails> | undefined,
-	ctx: ExtensionContext,
-): Promise<AgentToolResult<ComputerUseDetails>> {
-	return await executeTool(ctx, signal, () => performComputerActions(params, signal));
-}
-
-export async function executeWait(
-	_toolCallId: string,
-	params: WaitParams,
-	signal: AbortSignal | undefined,
-	_onUpdate: AgentToolUpdateCallback<ComputerUseDetails> | undefined,
-	ctx: ExtensionContext,
-): Promise<AgentToolResult<ComputerUseDetails>> {
-	return await executeTool(ctx, signal, () => performWait(params, signal));
-}
-
-export function reconstructStateFromBranch(ctx: ExtensionContext): void {
-	runtimeState.currentTarget = undefined;
-	runtimeState.currentCapture = undefined;
-	runtimeState.currentStateTarget = undefined;
-	runtimeState.currentAxTargets = undefined;
-	runtimeState.windowRefs.clear();
-	runtimeState.windowRefByIdentity.clear();
-	runtimeState.nextWindowRefIndex = 1;
-
-	let restoredCurrent = false;
-	for (const entry of [...ctx.sessionManager.getBranch()].reverse()) {
-		if ((entry as any)?.type !== "message") continue;
-		const message = (entry as any).message;
-		if (!message || message.role !== "toolResult") continue;
-		if (!TOOL_NAMES.has(message.toolName)) continue;
-
-		const rawDetails = message.details as any;
-		if (rawDetails?.tool === "list_windows" && Array.isArray(rawDetails.windows)) {
-			for (const window of rawDetails.windows) {
-				if (typeof window?.windowRef !== "string" || !Number.isFinite(window?.pid)) continue;
-				const record: WindowRefRecord = {
-					ref: window.windowRef,
-					appName: typeof window.app === "string" ? window.app : "Unknown App",
-					bundleId: typeof window.bundleId === "string" ? window.bundleId : undefined,
-					pid: Math.trunc(window.pid),
-					windowTitle: typeof window.windowTitle === "string" ? window.windowTitle : "(untitled)",
-					windowId: Number.isFinite(window.windowId) ? Math.trunc(window.windowId) : undefined,
-					nativeWindowRef: typeof window.nativeWindowRef === "string" ? window.nativeWindowRef : undefined,
-					framePoints: parseFramePoints({ framePoints: window.framePoints }),
-					scaleFactor: Math.max(1, toFiniteNumber(window.scaleFactor, 1)),
-					isMinimized: toBoolean(window.isMinimized),
-					isOnscreen: toBoolean(window.isOnscreen),
-					isMain: toBoolean(window.isMain),
-					isFocused: toBoolean(window.isFocused),
-				};
-				runtimeState.windowRefs.set(record.ref, record);
-				runtimeState.windowRefByIdentity.set(windowRecordIdentity(record), record.ref);
-				const match = /^@w(\d+)$/.exec(record.ref);
-				if (match) runtimeState.nextWindowRefIndex = Math.max(runtimeState.nextWindowRefIndex, Number(match[1]) + 1);
-			}
-			continue;
-		}
-
-		if (restoredCurrent) continue;
-
-		const details = rawDetails as Partial<ComputerUseDetails> | undefined;
-		if (!details?.target || !details?.capture) continue;
-
-		const app =
-			typeof details.target.app === "string"
-				? details.target.app
-				: typeof (details.target as any).appName === "string"
-					? (details.target as any).appName
-					: undefined;
-
-		if (!app) continue;
-		if (!Number.isFinite(details.target.pid) || !Number.isFinite(details.target.windowId)) continue;
-		if (typeof details.capture.stateId !== "string") continue;
-
-		runtimeState.currentTarget = {
-			appName: app,
-			bundleId: details.target.bundleId,
-			pid: Math.trunc(details.target.pid),
-			windowTitle: details.target.windowTitle ?? "(untitled)",
-			windowId: Math.trunc(details.target.windowId),
-			windowRef: typeof details.target.windowRef === "string" ? details.target.windowRef : undefined,
-			nativeWindowRef: typeof (details.target as any).nativeWindowRef === "string" ? (details.target as any).nativeWindowRef : undefined,
-		};
-
-		runtimeState.currentCapture = {
-			stateId: details.capture.stateId,
-			width: Math.max(1, Math.trunc(toFiniteNumber(details.capture.width, 1))),
-			height: Math.max(1, Math.trunc(toFiniteNumber(details.capture.height, 1))),
-			scaleFactor: Math.max(1, toFiniteNumber(details.capture.scaleFactor, 1)),
-			timestamp: Number.isFinite(details.capture.timestamp) ? details.capture.timestamp : Date.now(),
-		};
-		runtimeState.currentAxTargets = Array.isArray(details.axTargets)
-			? details.axTargets.filter((item): item is AxTarget => Boolean(item && typeof item.ref === "string" && typeof item.elementRef === "string"))
-			: undefined;
-
-		restoredCurrent = true;
-		continue;
-	}
 }
 
 export function stopBridge(): void {

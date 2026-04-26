@@ -103,5 +103,5 @@ Confirm:
 If the target is ambiguous, call `screenshot` with both app and window title:
 
 ```ts
-screenshot({ app: "TextEdit", windowTitle: "Untitled" })
+pi-computer-use screenshot --app TextEdit --windowTitle "Untitled"
 ```
