@@ -52,7 +52,9 @@
     "typecheck": "tsc -p tsconfig.json",
     "build:native": "node scripts/build-native.mjs",
     "benchmark:qa": "npx -y tsx benchmarks/qa.ts --allow-foreground-qa",
-    "benchmark:qa:full": "npx -y tsx benchmarks/qa.ts --allow-foreground-qa --allow-screen-takeover"
+    "benchmark:qa:full": "npx -y tsx benchmarks/qa.ts --allow-foreground-qa --allow-screen-takeover",
+    "test:e2e": "npx tsx harness/e2e.ts",
+    "test:e2e:write": "npx tsx harness/e2e.ts --allow-write"
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*"
