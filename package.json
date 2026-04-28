@@ -54,7 +54,8 @@
     "benchmark:qa": "npx -y tsx benchmarks/qa.ts --allow-foreground-qa",
     "benchmark:qa:full": "npx -y tsx benchmarks/qa.ts --allow-foreground-qa --allow-screen-takeover",
     "test:e2e": "npx tsx harness/e2e.ts",
-    "test:e2e:write": "npx tsx harness/e2e.ts --allow-write"
+    "test:e2e:write": "npx tsx harness/e2e.ts --allow-write",
+    "test:commits": "node scripts/check-commit-messages.mjs"
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*"
