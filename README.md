@@ -42,6 +42,8 @@ Start Pi in interactive mode. On the first session, grant macOS permissions to:
 
 Required permissions: **Accessibility** + **Screen Recording**.
 
+Some browser automation paths use JavaScript from Apple Events. If the browser blocks that, Pi surfaces a model-readable hint asking the user to enable **Allow JavaScript from Apple Events** in the browser's developer menu, then retry.
+
 Then use the CLI in any Pi bash session:
 
 ```bash

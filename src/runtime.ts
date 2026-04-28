@@ -50,9 +50,30 @@ export class HelperCommandError extends Error {
 	}
 }
 
+export const BROWSER_JAVASCRIPT_APPLE_EVENTS_HINT = [
+	"Browser JavaScript Apple Events are disabled for the target browser.",
+	'Ask the user to enable "Allow JavaScript from Apple Events" in the browser\'s developer menu, then retry the browser action.',
+].join(" ");
+
+export function isBrowserJavaScriptAppleEventsErrorMessage(message: string): boolean {
+	return /not allowed to send javascript commands/i.test(message)
+		|| /executing javascript through applescript is turned off/i.test(message)
+		|| /allow javascript from apple events/i.test(message)
+		|| /enable javascript from apple events/i.test(message)
+		|| (/javascript/i.test(message) && /apple events/i.test(message));
+}
+
+export function appendBrowserJavaScriptAppleEventsHint(error: Error): Error {
+	if (!isBrowserJavaScriptAppleEventsErrorMessage(error.message) || error.message.includes(BROWSER_JAVASCRIPT_APPLE_EVENTS_HINT)) {
+		return error;
+	}
+	const enhanced = new Error(`${error.message}\n\n${BROWSER_JAVASCRIPT_APPLE_EVENTS_HINT}`);
+	enhanced.name = error.name;
+	return enhanced;
+}
+
 export function normalizeError(error: unknown): Error {
-	if (error instanceof Error) return error;
-	return new Error(String(error));
+	return error instanceof Error ? error : new Error(String(error));
 }
 
 export function isRecoverableScreenshotError(error: unknown): error is HelperCommandError {

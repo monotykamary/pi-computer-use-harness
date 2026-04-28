@@ -8,7 +8,7 @@
 import type { FocusWindowResult, FramePoints, FrontmostResult, HelperApp, HelperWindow, ListAppsDetails, ListWindowsDetails, ListWindowsParams, ResolvedTarget, WindowRefRecord } from "./types.ts";
 import { BROWSER_APP_NAMES, BROWSER_BUNDLE_IDS, CHROME_FAMILY_APP_NAMES, CHROME_FAMILY_BUNDLE_IDS, COMMAND_TIMEOUT_MS , BROWSER_WINDOW_OPEN_TIMEOUT_MS } from "./constants.ts";
 import { isBrowserUseEnabled } from "./config.ts";
-import { nativeWindowRequest, normalizeText, runtimeState, toBoolean, toFiniteNumber, toOptionalString, trimOrUndefined } from "./runtime.ts";
+import { appendBrowserJavaScriptAppleEventsHint, nativeWindowRequest, normalizeError, normalizeText, runtimeState, toBoolean, toFiniteNumber, toOptionalString, trimOrUndefined } from "./runtime.ts";
 import { bridgeCommand, runProcess } from "./bridge-ipc.ts";
 
 export function parseApps(result: unknown): HelperApp[] {
@@ -223,7 +223,11 @@ export function escapeAppleScriptString(value: string): string {
 
 export async function runAppleScript(lines: string[], signal?: AbortSignal): Promise<void> {
 	const args = lines.flatMap((line) => ["-e", line]);
-	await runProcess("osascript", args, BROWSER_WINDOW_OPEN_TIMEOUT_MS, signal);
+	try {
+		await runProcess("osascript", args, BROWSER_WINDOW_OPEN_TIMEOUT_MS, signal);
+	} catch (error) {
+		throw appendBrowserJavaScriptAppleEventsHint(normalizeError(error));
+	}
 }
 
 export function browserOpenLocationAppleScript(target: ResolvedTarget, url: string): string[] | undefined {
