@@ -59,17 +59,17 @@ export function imageFallbackReason(
 		}
 		return { reason: "no_ax_targets", message: "No useful AX targets were found, so an image is attached for vision fallback." }
 	}
-	if (result.axTargets.length < 3) {
-		return { reason: "sparse_ax_targets", message: "Only a few AX targets were found, so an image is attached for extra context." }
-	}
 
 	const labels = result.axTargets.map((target) => normalizeText(target.title || target.description || target.value)).filter(Boolean)
 	const unlabeledCount = result.axTargets.filter((target) => !normalizeText(target.title || target.description || target.value)).length
-	const strongTextRoles = new Set(["AXTextField", "AXSearchField", "AXTextArea", "AXTextView", "AXEditableText"])
+	const strongTextRoles = new Set(["AXTextField", "AXSearchField", "AXTextArea", "AXTextView", "AXEditableText", "AXComboBox"])
 	const strongTargets = result.axTargets.filter((target) => {
 		const label = normalizeText(target.title || target.description || target.value)
 		return strongTextRoles.has(target.role) || (!!label && (target.actions.includes("AXPress") || target.role === "AXLink" || target.role === "AXButton"))
 	})
+	if (result.axTargets.length < 3 && strongTargets.length === 0) {
+		return { reason: "sparse_ax_targets", message: "Only a few AX targets were found, so an image is attached for extra context." }
+	}
 	if (strongTargets.length === 0) {
 		return { reason: "weak_ax_targets", message: "No strong AX targets were found, so an image is attached for vision fallback." }
 	}

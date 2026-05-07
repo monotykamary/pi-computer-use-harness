@@ -329,7 +329,7 @@ export async function focusBrowserAddressField(keys: string[], target: ResolvedT
 	if (!refreshed.length) return false;
 	runtimeState.currentAxTargets = refreshed;
 	const field = refreshed
-		.filter((candidate) => candidate.canFocus && candidate.isTextInput && (candidate.role === "AXTextField" || candidate.role === "AXSearchField"))
+		.filter((candidate) => candidate.canFocus && candidate.isTextInput && (candidate.role === "AXTextField" || candidate.role === "AXSearchField" || candidate.role === "AXComboBox"))
 		.sort((a, b) => a.y - b.y || a.x - b.x)[0];
 	if (!field) return false;
 	const focused = await focusAxElement(field.elementRef, target, signal);

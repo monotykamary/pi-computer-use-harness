@@ -19,6 +19,10 @@
  *   pi-computer-use navigate_browser --url "https://example.com" [--window @w1] [--image auto|always|never]
  *   pi-computer-use computer_actions --actions '[{...}]' [--window @w1] [--stateId ...] [--image auto|always|never]
  *
+ * Permission management:
+ *   pi-computer-use check_permissions
+ *   pi-computer-use open_permission_pane [--kind accessibility|screenRecording]
+ *
  * Also accepts JSON for programmatic use:
  *   pi-computer-use '{ "action": "click", "ref": "@e1" }'
  *
@@ -632,6 +636,18 @@ Environment:
 					...(image ? { image } : {}),
 				}),
 			);
+			break;
+		}
+
+		case "check_permissions":
+		case "recheck_permissions": {
+			await postAction(JSON.stringify({ action: "check_permissions" }));
+			break;
+		}
+
+		case "open_permission_pane": {
+			const kind = extractFlag(args, "kind") ?? "accessibility";
+			await postAction(JSON.stringify({ action: "open_permission_pane", kind }));
 			break;
 		}
 

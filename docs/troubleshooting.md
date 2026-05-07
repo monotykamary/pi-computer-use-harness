@@ -35,16 +35,26 @@ Required permissions:
 
 If macOS still denies access:
 
-1. Remove the helper from the permission list.
-2. Add it again.
-3. Restart Pi.
-4. Retry `screenshot`.
+1. Remove the helper from the permission list instead of only toggling it off/on.
+2. If there are multiple helper rows with the same name, remove all of them.
+3. Start Pi again and let `pi-computer-use` request permission for the current helper. The setup flow opens the settings pane and copies the helper path to your clipboard.
+4. Enable the newly added helper row.
+5. If the helper is not added automatically, click `+`, press `Cmd+Shift+G`, paste the copied helper path, add the helper, then enable it.
+6. Restart Pi or the Mac if macOS asks, then retry `screenshot`. The Recheck action reports which permission is still missing.
+
+macOS can keep stale Screen Recording entries for an older ad-hoc-signed helper after the helper binary changes. The setup script preserves an existing executable helper by default to avoid changing its macOS permission identity unnecessarily. To intentionally replace it, run setup with `--force` or set `PI_COMPUTER_USE_FORCE_HELPER_INSTALL=1`.
 
 ## Non-Interactive Setup Fails
 
 Permission setup requires an interactive Pi session because macOS permission panes are user-controlled.
 
 Start Pi interactively, grant permissions, then retry the non-interactive workflow.
+
+## SSH Sessions And macOS Permissions
+
+When Pi is started over SSH, macOS may scope Accessibility and Screen Recording checks to the SSH launch session instead of the logged-in GUI session. `pi-computer-use` detects SSH and launches the native helper through the user's GUI launchd domain with `launchctl asuser` when possible.
+
+This requires the same user to already be logged in to the Mac's desktop session. If permissions still fail over SSH, start Pi once from a local GUI Terminal session, complete permission setup there, then retry SSH. Set `PI_COMPUTER_USE_GUI_SESSION_LAUNCH=0` to disable the SSH re-anchor, or `PI_COMPUTER_USE_GUI_SESSION_LAUNCH=1` to force it.
 
 ## A Browser Says JavaScript From Apple Events Is Disabled
 

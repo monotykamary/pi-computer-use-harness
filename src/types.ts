@@ -207,6 +207,7 @@ export interface ComputerUseDetails {
 	axDiagnostics?: {
 		reason?: string;
 		message?: string;
+		debug?: unknown;
 	};
 	imageReason?:
 		| "fallback_recovery"
@@ -437,6 +438,6 @@ export interface CaptureResult {
 	capture: CurrentCapture;
 	image?: ScreenshotPayload;
 	axTargets: AxTarget[];
-	axDiagnostics?: { reason?: string; message?: string };
+	axDiagnostics?: { reason?: string; message?: string; debug?: unknown };
 	activation: ActivationFlags;
 }

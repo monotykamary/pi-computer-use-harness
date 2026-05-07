@@ -290,13 +290,15 @@ export function validateStateId(stateId?: string): CurrentCapture {
 }
 
 export function axDiagnosticsFromResult(result: unknown, target: ResolvedTarget): CaptureResult["axDiagnostics"] {
-	const reason = toOptionalString((result as any)?.reason);
-	if (!reason) return undefined;
+	const raw = result as any;
+	const reason = toOptionalString(raw?.reason);
+	const debug = raw?.diagnostics;
+	if (!reason && debug === undefined) return undefined;
 	if (reason === "window_not_found") {
 		const windowHint = target.windowRef ? ` Use list_windows and choose an existing content window such as ${target.windowRef}, then call: pi-computer-use screenshot --window ${target.windowRef}.` : " Use list_windows and choose an existing content window.";
-		return { reason, message: `Accessibility could not resolve the target browser window. Duplicate/empty browser windows can cause this.${windowHint}` };
+		return { reason, message: `Accessibility could not resolve the target browser window. Duplicate/empty browser windows can cause this.${windowHint}`, debug };
 	}
-	return { reason, message: `Accessibility target listing returned '${reason}'.` };
+	return { reason, message: reason ? `Accessibility target listing returned '${reason}'.` : undefined, debug };
 }
 
 export function parseAxTargets(result: unknown): AxTarget[] {

@@ -36,7 +36,7 @@ import {
 	performTypeText,
 	performWait,
 } from "../src/perform.ts";
-import { ensureBridgeReady, getRuntimeStateSnapshot, stopBridge } from "../src/bridge-ipc.ts";
+import { checkPermissions, copyHelperPathToClipboard, ensureBridgeReady, getRuntimeStateSnapshot, openPermissionPane, stopBridge } from "../src/bridge-ipc.ts";
 import type {
 	ArrangeWindowParams,
 	ClickParams,
@@ -291,6 +291,27 @@ async function dispatchAction(action: string, params: ActionParams): Promise<Har
 			const result = await performComputerActions(p);
 			const details = result.details as ComputerUseDetails;
 			return withOptionalImage(result, details);
+		}
+
+		case "check_permissions": {
+			const status = await checkPermissions();
+			const missing: string[] = [];
+			if (!status.accessibility) missing.push("Accessibility");
+			if (!status.screenRecording) missing.push("Screen Recording");
+			const text = missing.length === 0
+				? "All permissions granted."
+				: `Missing: ${missing.join(", ")}. Run: pi-computer-use open_permission_pane --kind ${missing[0].toLowerCase() === "accessibility" ? "accessibility" : "screenRecording"}`;
+			return { text, details: status };
+		}
+
+		case "open_permission_pane": {
+			const kind = (params.kind as string) ?? "accessibility";
+			if (kind !== "accessibility" && kind !== "screenRecording") {
+				throw new Error("kind must be 'accessibility' or 'screenRecording'");
+			}
+			await openPermissionPane(kind as "accessibility" | "screenRecording");
+			await copyHelperPathToClipboard().catch(() => undefined);
+			return { text: `Opened ${kind} settings. Helper path copied to clipboard. Enable the helper, then run: pi-computer-use check_permissions`, details: { kind } };
 		}
 
 		default:

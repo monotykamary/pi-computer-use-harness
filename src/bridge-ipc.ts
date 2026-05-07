@@ -136,12 +136,27 @@ export async function ensureHelperInstalled(signal?: AbortSignal): Promise<void>
 	}
 }
 
+export function isSshSession(): boolean {
+	return Boolean(process.env.SSH_CONNECTION || process.env.SSH_CLIENT || process.env.SSH_TTY);
+}
+
+export function helperSpawnCommand(): { command: string; args: string[] } {
+	const mode = process.env.PI_COMPUTER_USE_GUI_SESSION_LAUNCH ?? "auto";
+	const shouldUseGuiSession = mode === "1" || mode === "true" || (mode === "auto" && isSshSession());
+	const uid = typeof process.getuid === "function" ? process.getuid() : undefined;
+	if (shouldUseGuiSession && process.platform === "darwin" && uid !== undefined) {
+		return { command: "launchctl", args: ["asuser", String(uid), HELPER_STABLE_PATH] };
+	}
+	return { command: HELPER_STABLE_PATH, args: [] };
+}
+
 export async function startBridgeProcess(): Promise<ChildProcessWithoutNullStreams> {
 	if (!(await isExecutable(HELPER_STABLE_PATH))) {
 		throw new HelperTransportError(`Computer-use helper is missing at ${HELPER_STABLE_PATH}.`);
 	}
 
-	const child = spawn(HELPER_STABLE_PATH, [], {
+	const helperLaunch = helperSpawnCommand();
+	const child = spawn(helperLaunch.command, helperLaunch.args, {
 		stdio: ["pipe", "pipe", "pipe"],
 	});
 
@@ -257,6 +272,18 @@ export async function checkPermissions(signal?: AbortSignal): Promise<Permission
 	};
 }
 
+export async function openPermissionPane(kind: "accessibility" | "screenRecording", signal?: AbortSignal): Promise<void> {
+	await bridgeCommand("openPermissionPane", { kind }, { signal });
+}
+
+function appleScriptString(value: string): string {
+	return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+export async function copyHelperPathToClipboard(signal?: AbortSignal): Promise<void> {
+	await runProcess("osascript", ["-e", `set the clipboard to ${appleScriptString(HELPER_STABLE_PATH)}`], COMMAND_TIMEOUT_MS, signal);
+}
+
 /**
  * Ensure the helper is installed, the bridge process is running,
  * and macOS permissions are granted.
@@ -291,9 +318,14 @@ export async function ensureReady(signal?: AbortSignal): Promise<void> {
 	runtimeState.lastPermissionCheckAt = now;
 
 	if (!status.accessibility || !status.screenRecording) {
+		const missing: string[] = [];
+		if (!status.accessibility) missing.push("Accessibility");
+		if (!status.screenRecording) missing.push("Screen Recording");
 		throw new Error(
-			`pi-computer-use needs Accessibility and Screen Recording permissions for the helper at ${HELPER_STABLE_PATH}. ` +
-			`Start pi in interactive mode to grant them, or open System Settings → Privacy & Security and grant permissions manually.`,
+			`pi-computer-use needs ${missing.join(" and ")} permission${missing.length > 1 ? "s" : ""} for the helper at ${HELPER_STABLE_PATH}. ` +
+			`Open System Settings → Privacy & Security, enable the helper for the missing permission${missing.length > 1 ? "s" : ""}. ` +
+			`If the helper is not listed, click +, press Cmd+Shift+G, paste: ${HELPER_STABLE_PATH}, then enable it. ` +
+			`Restart Pi or the Mac if macOS asks, then retry.`,
 		);
 	}
 
