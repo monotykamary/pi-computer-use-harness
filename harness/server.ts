@@ -55,10 +55,6 @@ import type {
 } from "../src/types.ts";
 import { loadComputerUseConfig } from "../src/config.js";
 
-// =============================================================================
-// Screenshot temp directory
-// =============================================================================
-
 const SCREENSHOT_DIR = path.join(os.tmpdir(), "pi-computer-use");
 
 function ensureScreenshotDir(): void {
@@ -74,10 +70,6 @@ function writeScreenshotPng(stateId: string, pngBase64: string): string {
 	fs.writeFileSync(filePath, buffer);
 	return filePath;
 }
-
-// =============================================================================
-// Action dispatch
-// =============================================================================
 
 type ActionParams = Record<string, unknown>;
 
@@ -328,10 +320,6 @@ function withOptionalImage(
 
 	return { text, details: _details, imagePath };
 }
-
-// =============================================================================
-// HTTP Server
-// =============================================================================
 
 const PORT = Number(process.env.PI_COMPUTER_USE_PORT ?? 9876);
 const startedAt = Date.now();

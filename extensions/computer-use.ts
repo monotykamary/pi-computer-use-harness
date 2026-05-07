@@ -20,10 +20,6 @@ import { spawn as spawnChild, type ChildProcess } from "node:child_process";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { loadComputerUseConfig, getLoadedComputerUseConfig } from "../src/config.ts";
 
-// =============================================================================
-// CLI path resolution
-// =============================================================================
-
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 /** Resolve the project root (where package.json lives). */
@@ -38,10 +34,6 @@ function getProjectRoot(): string {
 function getCliTsPath(): string {
 	return join(getProjectRoot(), "harness", "cli.ts");
 }
-
-// =============================================================================
-// Shell alias installation
-// =============================================================================
 
 function installShellAlias(): void {
 	try {
@@ -73,10 +65,6 @@ exec npx tsx "${cliTsPath}" "$@"
 		// Best effort
 	}
 }
-
-// =============================================================================
-// Harness server lifecycle
-// =============================================================================
 
 interface HarnessServerController {
 	start(): void;
@@ -118,10 +106,6 @@ function createHarnessServer(): HarnessServerController {
 	return { start, stop };
 }
 
-// =============================================================================
-// Config display
-// =============================================================================
-
 function formatConfigStatus(): string {
 	const loaded = getLoadedComputerUseConfig();
 	const lines = [
@@ -140,10 +124,6 @@ function formatConfigStatus(): string {
 	lines.push(`- env overrides: ${envKeys.length ? envKeys.join(", ") : "none"}`);
 	return lines.join("\n");
 }
-
-// =============================================================================
-// Extension
-// =============================================================================
 
 export default function computerUseExtension(pi: ExtensionAPI): void {
 	const harnessServer = createHarnessServer();

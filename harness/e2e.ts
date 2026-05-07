@@ -31,10 +31,6 @@ const HOST = "127.0.0.1";
 const BASE_URL = `http://${HOST}:${PORT}`;
 const ALLOW_WRITE = process.argv.includes("--allow-write");
 
-// =============================================================================
-// Test framework
-// =============================================================================
-
 let passed = 0;
 let failed = 0;
 let skipped = 0;
@@ -63,10 +59,6 @@ async function test(name: string, fn: () => Promise<void>): Promise<void> {
 		failed++;
 	}
 }
-
-// =============================================================================
-// HTTP helpers
-// =============================================================================
 
 function httpGet(url: string, timeout = 3000): Promise<{ status: number; body: string }> {
 	return new Promise((resolve) => {
@@ -112,10 +104,6 @@ function httpPost(url: string, data: string, timeout = 30000): Promise<{ status:
 		req.end();
 	});
 }
-
-// =============================================================================
-// Harness server lifecycle
-// =============================================================================
 
 let serverProcess: ChildProcess | null = null;
 const CLI_PATH = path.resolve(__dirname, "cli.ts");
@@ -199,10 +187,6 @@ async function postAction(body: Record<string, unknown>): Promise<{ ok: boolean;
 	}
 }
 
-// =============================================================================
-// TextEdit management (only when --allow-write)
-// =============================================================================
-
 let textEditWasOpen = false;
 const TEST_FILE = path.join(os.tmpdir(), "pi-e2e-test.txt");
 
@@ -247,10 +231,6 @@ async function closeTextEdit(): Promise<void> {
 		// Best effort
 	}
 }
-
-// =============================================================================
-// Tests
-// =============================================================================
 
 async function testServerLifecycle(): Promise<void> {
 	await test("Server health endpoint", async () => {
@@ -462,10 +442,6 @@ async function testStateIdValidation(): Promise<void> {
 		ok("doesn't crash", result.ok === true || result.ok === false, `unexpected: ${JSON.stringify(result).slice(0, 200)}`);
 	});
 }
-
-// =============================================================================
-// Main
-// =============================================================================
 
 async function main(): Promise<void> {
 	console.log("═══════════════════════════════════════════════════════════");

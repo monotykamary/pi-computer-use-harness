@@ -44,10 +44,6 @@ const HOST = "127.0.0.1";
 const BASE_URL = `http://${HOST}:${PORT}`;
 const LOG = process.env.PI_COMPUTER_USE_LOG ?? "/tmp/pi-computer-use-harness.log";
 
-// =============================================================================
-// HTTP helpers
-// =============================================================================
-
 function httpGet(url: string): Promise<{ status: number; body: string }> {
 	return new Promise((resolve) => {
 		const req = http.get(url, { timeout: 2000 }, (res) => {
@@ -99,10 +95,6 @@ function httpPost(
 	});
 }
 
-// =============================================================================
-// Server lifecycle
-// =============================================================================
-
 async function isUp(): Promise<boolean> {
 	const { status } = await httpGet(`${BASE_URL}/health`);
 	return status === 200;
@@ -143,10 +135,6 @@ async function startServer(): Promise<boolean> {
 	return false;
 }
 
-// =============================================================================
-// Action dispatch
-// =============================================================================
-
 async function postAction(jsonBody: string): Promise<void> {
 	const { status, body } = await httpPost(`${BASE_URL}/action`, jsonBody);
 	if (status === 200) {
@@ -174,10 +162,6 @@ async function postAction(jsonBody: string): Promise<void> {
 		process.exit(1);
 	}
 }
-
-// =============================================================================
-// Argument parser
-// =============================================================================
 
 function extractFlag(args: string[], name: string): string | undefined {
 	const idx = args.findIndex((a) => a === `--${name}`);
@@ -240,10 +224,6 @@ function parseDragPath(raw: string): Array<{ x: number; y: number } | [number, n
 			return { x: Number(parts[0]), y: Number(parts[1]) };
 		});
 }
-
-// =============================================================================
-// CLI entrypoint
-// =============================================================================
 
 async function main(): Promise<void> {
 	const rawArgs = process.argv.slice(2);
