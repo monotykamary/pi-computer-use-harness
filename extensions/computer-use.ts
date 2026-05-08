@@ -17,7 +17,7 @@ import * as fs from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn as spawnChild, type ChildProcess } from "node:child_process";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { loadComputerUseConfig, getLoadedComputerUseConfig } from "../src/config.ts";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));

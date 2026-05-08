@@ -59,7 +59,7 @@
     "test:commits": "node scripts/check-commit-messages.mjs"
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",

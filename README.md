@@ -202,4 +202,4 @@ MIT
 ## See Also
 
 - [Pi](https://pi.dev/)
-- [`@mariozechner/pi-coding-agent`](https://www.npmjs.com/package/@mariozechner/pi-coding-agent)
+- [`@earendil-works/pi-coding-agent`](https://www.npmjs.com/package/@earendil-works/pi-coding-agent)
