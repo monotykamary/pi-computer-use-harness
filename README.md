@@ -31,7 +31,7 @@ macOS computer-use for [Pi](https://pi.dev/) via harness server and CLI.
 Install the Pi package:
 
 ```bash
-pi install git:github.com/monotykamary/pi-computer-use
+pi install https://github.com/monotykamary/pi-computer-use
 ```
 
 Start Pi in interactive mode. On the first session, grant macOS permissions to:
@@ -179,15 +179,15 @@ npm install @monotykamary/pi-computer-use@0.3.0
 Pi installs should pin a GitHub release tag:
 
 ```bash
-pi install git:github.com/monotykamary/pi-computer-use@v0.3.0
-pi install -l git:github.com/monotykamary/pi-computer-use@v0.3.0
+pi install https://github.com/monotykamary/pi-computer-use@v0.3.0
+pi install -l https://github.com/monotykamary/pi-computer-use@v0.3.0
 pi install /absolute/path/to/pi-computer-use
 ```
 
 Remove:
 
 ```bash
-pi remove git:github.com/monotykamary/pi-computer-use@v0.3.0
+pi remove https://github.com/monotykamary/pi-computer-use@v0.3.0
 npm remove @monotykamary/pi-computer-use
 ```
 
