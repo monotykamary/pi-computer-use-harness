@@ -16,9 +16,21 @@ const args = new Set(process.argv.slice(2));
 const isPostinstall = args.has("--postinstall");
 const forceInstall = args.has("--force") || process.env.PI_COMPUTER_USE_FORCE_HELPER_INSTALL === "1";
 const allowBuildFallback = args.has("--allow-build") || args.has("--runtime") || process.env.PI_COMPUTER_USE_ALLOW_BUILD === "1";
-const archTargets = {
-	arm64: "arm64-apple-macosx14.0",
-	x64: "x86_64-apple-macosx14.0",
+const archTriples = {
+	arm64: "arm64-apple-macosx",
+	x64: "x86_64-apple-macosx",
+};
+const helperVariants = {
+	legacy: {
+		deploymentTarget: "12.0",
+		defines: [],
+		frameworks: ["ApplicationServices", "AppKit", "Foundation"],
+	},
+	modern: {
+		deploymentTarget: "14.0",
+		defines: ["PI_COMPUTER_USE_SCREEN_CAPTURE_KIT"],
+		frameworks: ["ApplicationServices", "AppKit", "ScreenCaptureKit", "Foundation"],
+	},
 };
 const defaultCodeSignIdentifier = "com.injaneity.pi-computer-use.bridge";
 
@@ -27,8 +39,24 @@ function normalizeArch(arch) {
 	throw new Error(`Unsupported architecture '${arch}'. Supported: arm64, x64.`);
 }
 
-function prebuiltPathForArch(arch) {
-	return path.join(rootDir, "prebuilt", "macos", arch, "bridge");
+function normalizeVariant(variant) {
+	if (variant === "legacy" || variant === "modern") return variant;
+	throw new Error(`Unsupported helper variant '${variant}'. Supported: legacy, modern, auto.`);
+}
+
+function darwinMajorVersion() {
+	const major = Number.parseInt(os.release().split(".")[0] ?? "", 10);
+	return Number.isFinite(major) ? major : 0;
+}
+
+function selectedHelperVariant() {
+	const override = process.env.PI_COMPUTER_USE_HELPER_VARIANT ?? process.env.PI_COMPUTER_USE_CAPTURE_BACKEND ?? "auto";
+	if (override !== "auto") return normalizeVariant(override);
+	return darwinMajorVersion() >= 23 ? "modern" : "legacy";
+}
+
+function prebuiltPathForArch(arch, variant) {
+	return path.join(rootDir, "prebuilt", "macos", arch, variant, "bridge");
 }
 
 async function exists(filePath) {
@@ -86,8 +114,8 @@ async function run(command, commandArgs) {
 	});
 }
 
-function moduleCachePath(arch) {
-	return path.join(os.tmpdir(), `pi-computer-use-swift-module-cache-${arch}`);
+function moduleCachePath(arch, variant) {
+	return path.join(os.tmpdir(), `pi-computer-use-swift-module-cache-${arch}-${variant}`);
 }
 
 async function signHelper(outputPath) {
@@ -101,31 +129,24 @@ async function signHelper(outputPath) {
 	await run("codesign", commandArgs);
 }
 
-async function buildHelper(arch, outputPath) {
+async function buildHelper(arch, variant, outputPath) {
 	if (!(await exists(helperSourcePath))) {
 		throw new Error(`Native helper source not found at ${helperSourcePath}`);
 	}
 
+	const config = helperVariants[variant];
 	await fs.mkdir(path.dirname(outputPath), { recursive: true });
 	const swiftArgs = [
 		"swiftc",
 		"-target",
-		archTargets[arch],
+		`${archTriples[arch]}${config.deploymentTarget}`,
 		"-module-cache-path",
-		moduleCachePath(arch),
+		moduleCachePath(arch, variant),
 		"-O",
-		"-framework",
-		"ApplicationServices",
-		"-framework",
-		"AppKit",
-		"-framework",
-		"ScreenCaptureKit",
-		"-framework",
-		"Foundation",
-		helperSourcePath,
-		"-o",
-		outputPath,
 	];
+	for (const define of config.defines) swiftArgs.push("-D", define);
+	for (const framework of config.frameworks) swiftArgs.push("-framework", framework);
+	swiftArgs.push(helperSourcePath, "-o", outputPath);
 
 	await run("xcrun", swiftArgs);
 	await fs.chmod(outputPath, 0o755);
@@ -142,33 +163,49 @@ async function setup() {
 	}
 
 	const arch = normalizeArch(process.arch);
-	const prebuiltPath = prebuiltPathForArch(arch);
+	const variant = selectedHelperVariant();
+	const prebuiltPath = prebuiltPathForArch(arch, variant);
 	const prebuiltExists = await exists(prebuiltPath);
 
 	if (!forceInstall && (await isExecutable(helperDestPath))) {
-		console.log(`[pi-computer-use] using existing helper at ${helperDestPath}`);
-		return;
+		if (variant === "modern") {
+			console.log(`[pi-computer-use] using existing helper at ${helperDestPath}`);
+			return;
+		}
+		if (prebuiltExists) {
+			const { changed } = await copyIfChanged(prebuiltPath, helperDestPath);
+			console.log(
+				changed
+					? `[pi-computer-use] installed ${variant} helper from prebuilt (${arch}) to ${helperDestPath}`
+					: `[pi-computer-use] ${variant} helper already up to date at ${helperDestPath}`,
+			);
+			return;
+		}
+		if (!allowBuildFallback) {
+			console.log(`[pi-computer-use] using existing helper at ${helperDestPath}`);
+			return;
+		}
 	}
 
 	if (prebuiltExists) {
 		const { changed } = await copyIfChanged(prebuiltPath, helperDestPath);
 		console.log(
 			changed
-				? `[pi-computer-use] installed helper from prebuilt (${arch}) to ${helperDestPath}`
-				: `[pi-computer-use] helper already up to date at ${helperDestPath}`,
+				? `[pi-computer-use] installed ${variant} helper from prebuilt (${arch}) to ${helperDestPath}`
+				: `[pi-computer-use] ${variant} helper already up to date at ${helperDestPath}`,
 		);
 		return;
 	}
 
 	if (allowBuildFallback) {
-		console.log("[pi-computer-use] prebuilt helper missing; attempting source build with xcrun swiftc...");
-		await buildHelper(arch, helperDestPath);
-		console.log(`[pi-computer-use] built helper at ${helperDestPath}`);
+		console.log(`[pi-computer-use] ${variant} prebuilt helper missing; attempting source build with xcrun swiftc...`);
+		await buildHelper(arch, variant, helperDestPath);
+		console.log(`[pi-computer-use] built ${variant} helper at ${helperDestPath}`);
 		return;
 	}
 
 	throw new Error(
-		`No prebuilt helper found for ${arch} at ${prebuiltPath}. Run 'node scripts/build-native.mjs --output ${helperDestPath}' to build locally.`,
+		`No ${variant} prebuilt helper found for ${arch} at ${prebuiltPath}. Run 'node scripts/build-native.mjs --variant ${variant} --output ${helperDestPath}' to build locally.`,
 	);
 }
 

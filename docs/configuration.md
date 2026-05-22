@@ -56,9 +56,16 @@ PI_COMPUTER_USE_STEALTH_MODE=0
 PI_COMPUTER_USE_STEALTH_MODE=1
 PI_COMPUTER_USE_STEALTH=1
 PI_COMPUTER_USE_STRICT_AX=1
+PI_COMPUTER_USE_HELPER_VARIANT=auto
+PI_COMPUTER_USE_HELPER_VARIANT=modern
+PI_COMPUTER_USE_HELPER_VARIANT=legacy
+PI_COMPUTER_USE_GUI_SESSION_LAUNCH=auto
+PI_COMPUTER_USE_GUI_SESSION_LAUNCH=0
+PI_COMPUTER_USE_GUI_SESSION_LAUNCH=1
+PI_COMPUTER_USE_FORCE_HELPER_INSTALL=1
 ```
 
-`PI_COMPUTER_USE_STEALTH=1` and `PI_COMPUTER_USE_STRICT_AX=1` force `stealth_mode` on.
+`PI_COMPUTER_USE_STEALTH=1` and `PI_COMPUTER_USE_STRICT_AX=1` force `stealth_mode` on. `PI_COMPUTER_USE_HELPER_VARIANT` is normally `auto`: macOS 14+ uses the modern ScreenCaptureKit helper, while macOS 12/13 uses the legacy CGWindow/screencapture helper. Override it only for testing or troubleshooting. `PI_COMPUTER_USE_GUI_SESSION_LAUNCH` is normally `auto`: when running over SSH, the helper is launched through the GUI user's launchd domain via `launchctl asuser` so macOS permission checks scope correctly. Set to `1` to force this behavior, or `0` to disable it. `PI_COMPUTER_USE_FORCE_HELPER_INSTALL=1` forces the setup script to replace an existing helper binary even if it is already present (normally the setup preserves it to avoid changing its macOS permission identity).
 
 ## Recommended Defaults
 

@@ -8,9 +8,21 @@ import { fileURLToPath } from "node:url";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourcePath = path.join(rootDir, "native", "macos", "bridge.swift");
-const archTargets = {
-	arm64: "arm64-apple-macosx14.0",
-	x64: "x86_64-apple-macosx14.0",
+const archTriples = {
+	arm64: "arm64-apple-macosx",
+	x64: "x86_64-apple-macosx",
+};
+const helperVariants = {
+	legacy: {
+		deploymentTarget: "12.0",
+		defines: [],
+		frameworks: ["ApplicationServices", "AppKit", "Foundation"],
+	},
+	modern: {
+		deploymentTarget: "14.0",
+		defines: ["PI_COMPUTER_USE_SCREEN_CAPTURE_KIT"],
+		frameworks: ["ApplicationServices", "AppKit", "ScreenCaptureKit", "Foundation"],
+	},
 };
 const defaultCodeSignIdentifier = "com.injaneity.pi-computer-use.bridge";
 
@@ -32,6 +44,11 @@ function normalizeArch(arch) {
 	throw new Error(`Unsupported architecture '${arch}'. Supported: arm64, x64, universal, all.`);
 }
 
+function normalizeVariant(variant) {
+	if (variant === "legacy" || variant === "modern" || variant === "all") return variant;
+	throw new Error(`Unsupported helper variant '${variant}'. Supported: legacy, modern, all.`);
+}
+
 async function run(command, args) {
 	await new Promise((resolve, reject) => {
 		const child = spawn(command, args, { stdio: "inherit" });
@@ -46,34 +63,28 @@ async function run(command, args) {
 	});
 }
 
-function defaultOutputPath(arch) {
-	return path.join(rootDir, "prebuilt", "macos", arch, "bridge");
+function defaultOutputPath(arch, variant) {
+	return path.join(rootDir, "prebuilt", "macos", arch, variant, "bridge");
 }
 
-function moduleCachePath(arch) {
-	return path.join(os.tmpdir(), `pi-computer-use-swift-module-cache-${arch}`);
+function moduleCachePath(arch, variant) {
+	return path.join(os.tmpdir(), `pi-computer-use-swift-module-cache-${arch}-${variant}`);
 }
 
-function swiftArgsForArch(arch, outputPath) {
-	return [
+function swiftArgsForArch(arch, variant, outputPath) {
+	const config = helperVariants[variant];
+	const args = [
 		"swiftc",
 		"-target",
-		archTargets[arch],
+		`${archTriples[arch]}${config.deploymentTarget}`,
 		"-module-cache-path",
-		moduleCachePath(arch),
+		moduleCachePath(arch, variant),
 		"-O",
-		"-framework",
-		"ApplicationServices",
-		"-framework",
-		"AppKit",
-		"-framework",
-		"ScreenCaptureKit",
-		"-framework",
-		"Foundation",
-		sourcePath,
-		"-o",
-		outputPath,
 	];
+	for (const define of config.defines) args.push("-D", define);
+	for (const framework of config.frameworks) args.push("-framework", framework);
+	args.push(sourcePath, "-o", outputPath);
+	return args;
 }
 
 async function signBinary(outputPath) {
@@ -96,26 +107,26 @@ async function signBinary(outputPath) {
 	await run("codesign", args);
 }
 
-async function buildForArch(arch, outputPath) {
+async function buildForArch(arch, variant, outputPath) {
 	await fs.mkdir(path.dirname(outputPath), { recursive: true });
-	console.log(`Building native helper for ${arch}...`);
-	await run("xcrun", swiftArgsForArch(arch, outputPath));
+	console.log(`Building ${variant} native helper for ${arch}...`);
+	await run("xcrun", swiftArgsForArch(arch, variant, outputPath));
 	await fs.chmod(outputPath, 0o755);
 	await signBinary(outputPath);
-	console.log(`Built helper at ${outputPath}`);
+	console.log(`Built ${variant} helper at ${outputPath}`);
 }
 
-async function buildUniversal(outputPath) {
+async function buildUniversal(variant, outputPath) {
 	const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-computer-use-build-"));
-	const x64Output = path.join(tempDir, "bridge-x64");
-	const arm64Output = path.join(tempDir, "bridge-arm64");
-	await buildForArch("x64", x64Output);
-	await buildForArch("arm64", arm64Output);
+	const x64Output = path.join(tempDir, `bridge-x64-${variant}`);
+	const arm64Output = path.join(tempDir, `bridge-arm64-${variant}`);
+	await buildForArch("x64", variant, x64Output);
+	await buildForArch("arm64", variant, arm64Output);
 	await fs.mkdir(path.dirname(outputPath), { recursive: true });
 	await run("lipo", ["-create", "-output", outputPath, x64Output, arm64Output]);
 	await fs.chmod(outputPath, 0o755);
 	await signBinary(outputPath);
-	console.log(`Built universal helper at ${outputPath}`);
+	console.log(`Built universal ${variant} helper at ${outputPath}`);
 	await fs.rm(tempDir, { recursive: true, force: true });
 }
 
@@ -125,24 +136,30 @@ async function main() {
 	}
 
 	const arch = normalizeArch(getArg("--arch") ?? process.arch);
+	const variant = normalizeVariant(getArg("--variant") ?? "modern");
 	const outputArg = getArg("--output");
 
-	if (arch === "all") {
+	if (arch === "all" || variant === "all") {
 		if (outputArg) {
-			throw new Error("--output is not supported with --arch all. Use --arch arm64/x64/universal for a single output.");
+			throw new Error("--output is not supported with --arch all or --variant all. Use a single arch/variant for one output.");
 		}
-		await buildForArch("x64", defaultOutputPath("x64"));
-		await buildForArch("arm64", defaultOutputPath("arm64"));
+		const archList = arch === "all" ? ["x64", "arm64"] : [arch];
+		const variantList = variant === "all" ? ["legacy", "modern"] : [variant];
+		for (const nextVariant of variantList) {
+			for (const nextArch of archList) {
+				await buildForArch(nextArch, nextVariant, defaultOutputPath(nextArch, nextVariant));
+			}
+		}
 		return;
 	}
 
-	const outputPath = outputArg ? path.resolve(process.cwd(), outputArg) : defaultOutputPath(arch);
+	const outputPath = outputArg ? path.resolve(process.cwd(), outputArg) : defaultOutputPath(arch, variant);
 	if (arch === "universal") {
-		await buildUniversal(outputPath);
+		await buildUniversal(variant, outputPath);
 		return;
 	}
 
-	await buildForArch(arch, outputPath);
+	await buildForArch(arch, variant, outputPath);
 }
 
 main().catch((error) => {

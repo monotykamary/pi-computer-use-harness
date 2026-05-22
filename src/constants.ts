@@ -25,7 +25,7 @@ const TOOL_NAMES = new Set([
 export const MISSING_TARGET_ERROR = "No current controlled window. Call screenshot first to choose a target window.";
 export const CURRENT_TARGET_GONE_ERROR =
 	"The current controlled window is no longer available. Call screenshot to choose a new target window.";
-export const NON_MACOS_ERROR = "pi-computer-use currently supports macOS 15+ only.";
+export const NON_MACOS_ERROR = "pi-computer-use currently supports macOS 12+ only.";
 
 export const COMMAND_TIMEOUT_MS = 15_000;
 export const SCREENSHOT_TIMEOUT_MS = 25_000;

@@ -5,3 +5,7 @@ package-lock.json
 index-*.js
 main.js
 tmp/
+
+# Local benchmark output
+benchmarks/results/*.local.*
+benchmarks/results/*local*
