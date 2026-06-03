@@ -1,4 +1,12 @@
-# pi-computer-use
+<div align="center">
+
+# 🖥️ pi-computer-use
+
+**macOS computer-use for [pi](https://github.com/earendil-works/pi-coding-agent)**
+
+_Semantic desktop interaction via Accessibility targets — clicks, types, reads visible windows._
+
+</div>
 
 <p align="center">
   <img src="./assets/logo/logo3.png" width="50%" alt="pi-computer-use">
@@ -10,6 +18,8 @@
   <img alt="platform" src="https://img.shields.io/badge/platform-macOS-lightgrey?style=flat-square">
   <a href="https://github.com/monotykamary/pi-computer-use/actions/workflows/ci.yml"><img alt="ci" src="https://img.shields.io/github/actions/workflow/status/monotykamary/pi-computer-use/ci.yml?branch=main&style=flat-square"></a>
 </p>
+
+---
 
 macOS computer-use for [Pi](https://pi.dev/) via harness server and CLI.
 
