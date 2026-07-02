@@ -7,15 +7,15 @@
  */
 
 import { randomUUID } from "node:crypto";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ActivationFlags, AxTarget, CaptureResult, CurrentCapture, CurrentTarget, DragParams, ExecutionTrace, ExecutionVariant, HelperAxTarget, MouseButtonName, ResolvedTarget, RuntimeState } from "./types.ts";
 import { ACTION_SETTLE_MS, MISSING_TARGET_ERROR, RECOVERABLE_SCREENSHOT_ERROR_CODES } from "./constants.ts";
 import { isStrictAxMode } from "./config.ts";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 
-export const HELPER_STABLE_PATH = path.join(os.homedir(), ".pi", "agent", "helpers", "pi-computer-use", "bridge");
+export const HELPER_STABLE_PATH = path.join(getAgentDir(), "helpers", "pi-computer-use", "bridge");
 
 export const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const SETUP_HELPER_SCRIPT = path.join(PACKAGE_ROOT, "scripts", "setup-helper.mjs");

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
 	performDrag,
 	performKeypress,
@@ -36,7 +37,7 @@ function argValue(name: string): string | undefined {
 const OUTPUT_PATH = argValue("--output");
 const BASELINE_PATH = argValue("--baseline");
 const CONFIG_PATH = path.resolve(process.cwd(), "benchmarks/config.json");
-const HELPER_PATH = path.join(os.homedir(), ".pi", "agent", "helpers", "pi-computer-use", "bridge");
+const HELPER_PATH = path.join(getAgentDir(), "helpers", "pi-computer-use", "bridge");
 const HELPER_SOURCE_PATH = path.resolve(process.cwd(), "native/macos/bridge.swift");
 
 const BROWSER_APPS = ["Safari", "Google Chrome", "Chrome", "Chromium", "Firefox", "Helium", "Arc", "Brave Browser", "Microsoft Edge"];

@@ -9,7 +9,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const helperDestPath = path.join(os.homedir(), ".pi", "agent", "helpers", "pi-computer-use", "bridge");
+// Mirrors getAgentDir() from @earendil-works/pi-coding-agent. Inlined here
+// (rather than imported) because this postinstall script may run before the
+// SDK peer dependency is resolvable.
+const agentDir = process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), ".pi", "agent");
+const helperDestPath = path.join(agentDir, "helpers", "pi-computer-use", "bridge");
 const helperSourcePath = path.join(rootDir, "native", "macos", "bridge.swift");
 
 const args = new Set(process.argv.slice(2));

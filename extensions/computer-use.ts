@@ -12,12 +12,11 @@
  *   - Provides the /computer-use command for config inspection
  */
 
-import { homedir } from "node:os";
 import * as fs from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn as spawnChild, type ChildProcess } from "node:child_process";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { loadComputerUseConfig, getLoadedComputerUseConfig } from "../src/config.ts";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -37,7 +36,7 @@ function getCliTsPath(): string {
 
 function installShellAlias(): void {
 	try {
-		const agentBinDir = join(homedir(), ".pi", "agent", "bin");
+		const agentBinDir = join(getAgentDir(), "bin");
 		if (!fs.existsSync(agentBinDir)) {
 			fs.mkdirSync(agentBinDir, { recursive: true });
 		}
