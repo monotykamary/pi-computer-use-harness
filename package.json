@@ -1,6 +1,6 @@
 {
   "name": "@monotykamary/pi-computer-use",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "macOS computer-use for Pi via harness server and CLI.",
   "type": "module",
   "keywords": [
