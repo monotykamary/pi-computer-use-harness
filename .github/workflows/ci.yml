@@ -16,21 +16,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Run checks
-        run: pnpm test
+        run: bun run test
 
       - name: Check commit messages
         if: github.event_name == 'pull_request'
         env:
           GITHUB_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: pnpm test:commits
+        run: bun run test:commits
