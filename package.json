@@ -1,6 +1,6 @@
 {
   "name": "@monotykamary/pi-computer-use",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "description": "macOS computer-use for Pi via harness server and CLI.",
   "type": "module",
   "keywords": [
@@ -56,22 +56,23 @@
     "test": "npm run typecheck",
     "test:e2e": "npx tsx harness/e2e.ts",
     "test:e2e:write": "npx tsx harness/e2e.ts --allow-write",
-    "test:commits": "node scripts/check-commit-messages.mjs"
+    "test:commits": "node scripts/check-commit-messages.mjs",
+    "test:pi": "node scripts/test-pi-compat.mjs"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=0.74.0"
+    "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
     "@types/node": "25.9.1",
     "knip": "6.14.1",
     "typescript": "6.0.3",
-    "@earendil-works/pi-coding-agent": "0.87.0"
+    "@earendil-works/pi-coding-agent": "0.99.0"
   },
   "overrides": {
     "brace-expansion": "5.0.6",
     "fast-xml-builder": "1.2.0",
     "protobufjs": "8.4.0",
     "ws": "8.20.1",
-    "@earendil-works/pi-coding-agent": "0.87.0"
+    "@earendil-works/pi-coding-agent": "0.99.0"
   }
 }
