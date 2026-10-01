@@ -1,6 +1,6 @@
 {
   "name": "@monotykamary/pi-computer-use",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "description": "macOS computer-use for Pi via harness server and CLI.",
   "type": "module",
   "keywords": [
@@ -66,13 +66,13 @@
     "@types/node": "25.9.1",
     "knip": "6.14.1",
     "typescript": "6.0.3",
-    "@earendil-works/pi-coding-agent": "0.99.0"
+    "@earendil-works/pi-coding-agent": "1.0.0"
   },
   "overrides": {
     "brace-expansion": "5.0.6",
     "fast-xml-builder": "1.2.0",
     "protobufjs": "8.4.0",
     "ws": "8.20.1",
-    "@earendil-works/pi-coding-agent": "0.99.0"
+    "@earendil-works/pi-coding-agent": "1.0.0"
   }
 }
