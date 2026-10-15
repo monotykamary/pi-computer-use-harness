@@ -15,12 +15,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/monotykamary/pi-computer-use.git"
+    "url": "git+https://github.com/monotykamary/pi-computer-use-harness.git"
   },
   "bugs": {
-    "url": "https://github.com/monotykamary/pi-computer-use/issues"
+    "url": "https://github.com/monotykamary/pi-computer-use-harness/issues"
   },
-  "homepage": "https://github.com/monotykamary/pi-computer-use#readme",
+  "homepage": "https://github.com/monotykamary/pi-computer-use-harness#readme",
   "engines": {
     "node": ">=20.6.0"
   },
