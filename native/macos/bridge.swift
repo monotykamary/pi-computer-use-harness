@@ -176,9 +176,15 @@ final class Bridge {
 	private let refStore = AXRefStore()
 	private let inputSuppressionGuard = InputSuppressionGuard()
 	private var stdinBuffer = Data()
+	private var stdinSource: DispatchSourceRead?
 
 	func run() {
-		while true {
+		// NSWorkspace only refreshes runningApplications/frontmostApplication when
+		// the main run loop runs. A blocking stdin loop freezes those snapshots.
+		// Read only when the pipe is ready, keeping AppKit work serialized on main
+		// while letting its run loop process app launch/exit notifications when idle.
+		let source = DispatchSource.makeReadSource(fileDescriptor: STDIN_FILENO, queue: .main)
+		source.setEventHandler { [self] in
 			autoreleasepool {
 				let data = FileHandle.standardInput.availableData
 				if data.isEmpty {
@@ -188,6 +194,9 @@ final class Bridge {
 				processBufferedInput()
 			}
 		}
+		stdinSource = source
+		source.resume()
+		CFRunLoopRun()
 	}
 
 	private func processBufferedInput() {

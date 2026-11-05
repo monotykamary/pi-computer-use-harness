@@ -53,11 +53,16 @@
     "build:native": "node scripts/build-native.mjs",
     "benchmark:qa": "npx -y tsx benchmarks/qa.ts --allow-foreground-qa",
     "benchmark:qa:full": "npx -y tsx benchmarks/qa.ts --allow-foreground-qa --allow-screen-takeover",
-    "test": "npm run typecheck",
+    "test": "npm run typecheck && npm run test:unit",
+    "test:unit": "node --import tsx --test tests/harness-lifecycle.test.ts",
+    "test:native": "node --test tests/native-discovery.test.mjs",
     "test:e2e": "npx tsx harness/e2e.ts",
     "test:e2e:write": "npx tsx harness/e2e.ts --allow-write",
     "test:commits": "node scripts/check-commit-messages.mjs",
     "test:pi": "node scripts/test-pi-compat.mjs"
+  },
+  "dependencies": {
+    "tsx": "^4.23.15"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"

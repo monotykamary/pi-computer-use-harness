@@ -372,6 +372,10 @@ async function ensureBridge(): Promise<void> {
 	await ensureBridgeReady();
 }
 
+// Initialize the same home-scoped config used by runtime-mode checks before
+// accepting requests, including /health (which does not initialize the bridge).
+loadComputerUseConfig(os.homedir());
+
 const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
 	const url = new URL(req.url ?? "/", `http://127.0.0.1:${PORT}`);
 

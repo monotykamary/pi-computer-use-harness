@@ -13,11 +13,14 @@
  */
 
 import * as fs from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { spawn as spawnChild, type ChildProcess } from "node:child_process";
+import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { createRequire } from "node:module";
+import { get } from "node:http";
+import { spawn as spawnChild } from "node:child_process";
 import { getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { loadComputerUseConfig, getLoadedComputerUseConfig } from "../src/config.ts";
+import { createHarnessLifecycle, waitForHarnessReady } from "../src/harness-lifecycle.ts";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
@@ -65,44 +68,35 @@ exec npx tsx "${cliTsPath}" "$@"
 	}
 }
 
-interface HarnessServerController {
-	start(): void;
-	stop(): void;
-}
-
-function createHarnessServer(): HarnessServerController {
-	let harnessProcess: ChildProcess | null = null;
-
-	function start(): void {
-		if (harnessProcess) return;
-		if (process.env.PI_SWARM_SPAWNED === "1") return;
-
-		const cliTsPath = getCliTsPath();
-		const projectRoot = getProjectRoot();
-
-		try {
-			harnessProcess = spawnChild("npx", ["tsx", cliTsPath, "--start"], {
-				cwd: projectRoot,
-				stdio: ["ignore", "ignore", "ignore"],
-				detached: true,
+function createHarnessServer() {
+	return createHarnessLifecycle({
+		isRunning: () => new Promise<boolean>((resolve) => {
+			const port = Number(process.env.PI_COMPUTER_USE_PORT ?? 9876);
+			const request = get(`http://127.0.0.1:${port}/health`, (response) => {
+				response.resume();
+				resolve(response.statusCode === 200);
 			});
-			harnessProcess.unref();
-		} catch {
-			// Harness server is optional — lifecycle still works without it
-		}
-	}
-
-	function stop(): void {
-		if (!harnessProcess) return;
-		try {
-			harnessProcess.kill("SIGTERM");
-		} catch {
-			// Best effort
-		}
-		harnessProcess = null;
-	}
-
-	return { start, stop };
+			const timeout = setTimeout(() => {
+				request.destroy();
+				resolve(false);
+			}, 1000);
+			request.once("close", () => clearTimeout(timeout));
+			request.once("error", () => resolve(false));
+		}),
+		spawn: () => {
+			// Resolve the loader here rather than relying on cwd or a global npx.
+			const tsx = createRequire(import.meta.url).resolve("tsx");
+			return spawnChild(process.execPath, [
+				"--import", pathToFileURL(tsx).href,
+				join(getProjectRoot(), "harness", "server.ts"),
+			], {
+				cwd: getProjectRoot(),
+				stdio: ["ignore", "pipe", "inherit"],
+			});
+		},
+		ready: waitForHarnessReady,
+		onError: (error) => console.error("pi-computer-use: harness lifecycle failed:", error),
+	});
 }
 
 function formatConfigStatus(): string {
@@ -144,7 +138,7 @@ export default function computerUseExtension(pi: ExtensionAPI): void {
 		}
 
 		// Start the harness server so CLI commands work immediately
-		harnessServer.start();
+		if (process.env.PI_SWARM_SPAWNED !== "1") await harnessServer.start();
 	});
 
 	pi.on("session_tree", async (_event, ctx) => {
@@ -152,6 +146,6 @@ export default function computerUseExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.on("session_shutdown", async () => {
-		harnessServer.stop();
+		await harnessServer.stop();
 	});
 }

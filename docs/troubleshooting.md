@@ -101,6 +101,29 @@ Use AX refs from the latest `screenshot`, open a dedicated browser window manual
 
 Coordinates are valid only for the latest screenshot state. Call `screenshot` again and retry with the new `stateId`.
 
+## App Discovery Shows Old Processes Or Misses A Newly Opened App
+
+A healthy HTTP backend is not proof that an older native helper's app list is
+fresh. Helpers built before the main-run-loop fix could keep a stale
+`NSWorkspace.runningApplications` snapshot while waiting for stdin commands.
+
+After updating/rebuilding the native helper, restart the backend:
+
+```bash
+pi-computer-use --restart
+pi-computer-use list_apps
+```
+
+A restart alone is only a temporary workaround with an old helper. The setup
+script preserves an existing modern helper; rebuild it or intentionally install
+an updated prebuilt with `node scripts/setup-helper.mjs --force`. Replacing an
+ad-hoc-signed helper may require granting macOS permissions again as described
+above.
+
+The Pi extension now owns and shuts down the server it starts. A standalone
+server already running on the shared port is reused without taking ownership;
+use `pi-computer-use --stop` to shut that server down explicitly.
+
 ## An AX Ref Is Missing Or Stale
 
 AX refs are scoped to the latest semantic state. Call `screenshot` or `wait` to refresh the target list.

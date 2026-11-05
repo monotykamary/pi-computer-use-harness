@@ -92,6 +92,22 @@ For TypeScript checks:
 npm run typecheck
 ```
 
+`npm test` also runs backend ownership, startup/shutdown race, readiness, and
+first-health-response configuration tests on an isolated port.
+
+For the native app-discovery regression on macOS:
+
+```bash
+npm run test:native
+```
+
+This builds a temporary legacy helper and a disposable, windowless application.
+It verifies that a single helper observes application launch and exit without a
+restart, and still handles fragmented/batched stdin and EOF. It does not interact
+with existing applications or require Accessibility/Screen Recording access.
+To test a separately built helper (including the modern variant), set
+`PI_COMPUTER_USE_TEST_HELPER=/absolute/path/to/bridge`.
+
 For behavior changes, run the QA benchmark:
 
 ```bash
